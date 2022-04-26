@@ -1,0 +1,9 @@
+[package]
+name = "bftd"
+version = "0.1.0"
+authors = ["frostu8 <frostu8@protonmail.com>"]
+edition = "2021"
+
+description = "Battle for the Domain"
+
+[dependencies]
