@@ -7,3 +7,18 @@ edition = "2021"
 description = "Battle for the Domain"
 
 [dependencies]
+ggez = "0.7"
+# for later
+#rhai = "1.6.1"
+
+anyhow = "1.0"
+env_logger = "0.9"
+
+[dependencies.glam]
+version = "0.20"
+features = ["serde", "mint"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
