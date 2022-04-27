@@ -5,17 +5,20 @@ extern crate anyhow;
 
 pub mod battle;
 pub mod fsm;
+pub mod input;
 pub mod rect;
 
 use std::sync::Arc;
 
 use glam::Vec2;
 
-use ggez::Context;
+use ggez::{Context, timer};
 use ggez::event::EventHandler;
+use ggez::input::keyboard::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, Image};
 
-use battle::Battle;
+use battle::{Battle, FRAMES_PER_SECOND};
+use input::{Direction, Inputs};
 use fsm::{Fsm, State, Frame, Sprite};
 
 use anyhow::Error;
@@ -23,6 +26,7 @@ use anyhow::Error;
 /// The main game state.
 pub struct Game {
     battle: Battle,
+    current_inputs: Inputs,
 }
 
 impl Game {
@@ -42,12 +46,38 @@ impl Game {
 
         Ok(Game {
             battle: Battle::new(gdfsm.clone(), gdfsm),
+            current_inputs: Default::default(),
         })
     }
 }
 
 impl EventHandler for Game {
-    fn update(&mut self, _cx: &mut Context) -> ggez::GameResult {
+    fn key_down_event(
+        &mut self,
+        ctx: &mut Context,
+        keycode: KeyCode,
+        _keymods: KeyMods,
+        _repeat: bool
+    ) {
+        if keycode == KeyCode::Escape {
+            ggez::event::quit(ctx);
+            return;
+        }
+
+        // TODO: inputs are only sampled at the start of the frame;
+        // this enables input tunneling that is very bad and needs to be fixed
+    }
+
+    fn update(&mut self, cx: &mut Context) -> ggez::GameResult {
+        while timer::check_update_time(cx, FRAMES_PER_SECOND) {
+            // do final pass of inputs
+            self.current_inputs = poll_inputs(cx);
+
+            // update
+            self.battle.update(self.current_inputs, Inputs::default()).unwrap();
+            self.current_inputs = Inputs::default();
+        }
+
         Ok(())
     }
 
@@ -57,6 +87,16 @@ impl EventHandler for Game {
         self.battle.draw(cx).unwrap();
 
         graphics::present(cx)
+    }
+}
+
+fn poll_inputs(cx: &mut Context) -> Inputs {
+    if keyboard::is_key_pressed(cx, KeyCode::D) {
+        Inputs {
+            direction: Direction::D6,
+        }
+    } else {
+        Inputs::default()
     }
 }
 

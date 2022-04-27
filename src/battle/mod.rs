@@ -11,13 +11,18 @@
 mod player;
 
 pub use player::Player;
+
 use crate::fsm::Fsm;
+use crate::input::Inputs;
 
 use std::sync::Arc;
 
 use glam::f32::Vec2;
 
 use anyhow::Error;
+
+/// How many frames of logic are elapsed in a single second.
+pub const FRAMES_PER_SECOND: u32 = 60;
 
 /// The size of each stage in the game.
 ///
@@ -46,6 +51,16 @@ impl Battle {
             p1: Player::new(p1, Vec2::new(-500., 0.), Arc::from("idle"), false),
             p2: Player::new(p2, Vec2::new(500., 0.), Arc::from("idle"), true),
         }
+    }
+
+    /// Processes the next frame of gameplay using the inputs provided for each
+    /// player.
+    pub fn update(&mut self, p1: Inputs, p2: Inputs) -> Result<(), Error> {
+        // first, update each player's individual state
+        self.p1.update(p1)?;
+        self.p2.update(p2)?;
+
+        Ok(())
     }
 
     /// Draws the battle to a graphics context.
