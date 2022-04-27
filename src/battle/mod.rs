@@ -15,9 +15,18 @@ use crate::fsm::Fsm;
 
 use std::sync::Arc;
 
-use glam::f32::{Mat4, Vec2};
+use glam::f32::Vec2;
 
 use anyhow::Error;
+
+/// The size of each stage in the game.
+///
+/// The origin of the stage is `0`. In the case of `10,000`, the stage would
+/// extend `5,000` units to the left and `5,000` units to the right.
+pub const STAGE_SIZE: f32 = 10_000.0;
+
+/// The maximum horizontal distance two players can be away from each other.
+pub const MAX_HORIZONTAL_DISTANCE: f32 = 3_000.0;
 
 /// A battle.
 ///
@@ -34,8 +43,8 @@ impl Battle {
     /// The initial state is always `"idle"`.
     pub fn new(p1: Fsm, p2: Fsm) -> Battle {
         Battle {
-            p1: Player::new(p1, Vec2::new(0., 100.), Arc::from("idle"), false),
-            p2: Player::new(p2, Vec2::new(240., 100.), Arc::from("idle"), true),
+            p1: Player::new(p1, Vec2::new(-500., 0.), Arc::from("idle"), false),
+            p2: Player::new(p2, Vec2::new(500., 0.), Arc::from("idle"), true),
         }
     }
 

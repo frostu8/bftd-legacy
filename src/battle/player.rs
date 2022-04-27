@@ -53,9 +53,13 @@ impl Player {
             .ok_or_else(|| anyhow!("player in an invalid frame"))?
             .sprite;
 
-        let transform = Affine2::from_translation(self.pos);
-
         if let Some(sprite) = sprite {
+            let mut transform = Affine2::from_translation(self.pos);
+
+            if self.facing_right {
+                transform = transform * Affine2::from_scale(Vec2::new(-1.0, 1.0));
+            }
+
             sprite.draw(cx, transform)?;
         }
         

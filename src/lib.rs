@@ -9,7 +9,7 @@ pub mod rect;
 
 use std::sync::Arc;
 
-use glam::{Mat4, Mat3, Vec2};
+use glam::Vec2;
 
 use ggez::Context;
 use ggez::event::EventHandler;
@@ -28,17 +28,17 @@ pub struct Game {
 impl Game {
     /// Creates the main game state.
     pub fn new(cx: &mut Context) -> Result<Game, Error> {
+        const ELEVATION: f32 = 100.0;
+
         let gdfsm = granddad_fsm(cx)?;
 
-        /*
         let rect = ggez::graphics::Rect {
-            x: 0.0,
-            y: 480.0,
-            w: 640.0,
-            h: -480.0,
+            x: -960.0,
+            y: -1080.0 + ELEVATION,
+            w: 1920.0,
+            h: 1080.0,
         };
         graphics::set_screen_coordinates(cx, rect).unwrap();
-        */
 
         Ok(Game {
             battle: Battle::new(gdfsm.clone(), gdfsm),
@@ -47,7 +47,7 @@ impl Game {
 }
 
 impl EventHandler for Game {
-    fn update(&mut self, cx: &mut Context) -> ggez::GameResult {
+    fn update(&mut self, _cx: &mut Context) -> ggez::GameResult {
         Ok(())
     }
 
@@ -65,11 +65,14 @@ fn granddad_fsm(cx: &mut Context) -> Result<Fsm, Error> {
     let texture = include_bytes!("../granddad.png");
     let image = Image::from_bytes(cx, texture)?;
 
+    let mut idle_sprite = Sprite::new(image);
+    idle_sprite.transform = glam::Affine2::from_scale(Vec2::new(0.625, 0.625));
+
     let idle = State {
         name: Arc::from("idle"),
         frames: vec![
             Frame {
-                sprite: Some(Sprite::new(image)),
+                sprite: Some(idle_sprite),
             }
         ],
     };
