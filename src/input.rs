@@ -157,14 +157,14 @@ impl Buttons {
 impl Debug for Buttons {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         if self.is_empty() {
-            f.write_str("Buttons::empty")
+            f.write_str("(empty)")
         } else {
             let mut first = true;
             for &(button, name) in Buttons::BUTTON_NAMES {
                 if first {
                     first = false;
                 } else {
-                    f.write_str(", ")?;
+                    f.write_str(" | ")?;
                 }
 
                 if self.contains(button) {
