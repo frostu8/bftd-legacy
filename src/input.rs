@@ -1,6 +1,7 @@
 //! Input scanning and reading.
 
 use std::fmt::{self, Debug, Formatter};
+use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign};
 
 /// A view into a set of inputs for each frame.
 ///
@@ -39,12 +40,15 @@ impl<T: AsRef<[Inputs]>> View<T> {
 pub struct Inputs {
     /// The direction.
     pub direction: Direction,
+    /// The buttons down.
+    pub buttons: Buttons,
 }
 
 impl Debug for Inputs {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_tuple("Inputs")
             .field(&self.direction)
+            .field(&self.buttons)
             .finish()
     }
 }
@@ -111,6 +115,99 @@ impl Direction {
 impl Default for Direction {
     fn default() -> Direction {
         Direction::D5
+    }
+}
+
+/// Button inputs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Buttons(u8);
+
+impl Buttons {
+    /// The `A` (light attack) input.
+    pub const A: Buttons = Buttons(0b0001);
+    /// The `B` (medium attack) input.
+    pub const B: Buttons = Buttons(0b0010);
+    /// The `C` (heavy attack) input.
+    pub const C: Buttons = Buttons(0b0100);
+
+    /// A list of buttons matched with string representations.
+    pub const BUTTON_NAMES: &'static [(Buttons, &'static str)] = &[
+        (Buttons::A, "A"),
+        (Buttons::B, "B"),
+        (Buttons::C, "C"),
+    ];
+
+    /// The empty set of buttons.
+    pub const fn empty() -> Buttons {
+        Buttons(0)
+    }
+
+    /// Checks if `self` is empty.
+    pub const fn is_empty(self) -> bool {
+        self.0 == Buttons::empty().0
+    }
+
+    /// Checks if all buttons contained in `other` are contained in `self`.
+    pub const fn contains(self, other: Buttons) -> bool {
+        self & other == other
+    }
+}
+
+impl Debug for Buttons {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        if self.is_empty() {
+            f.write_str("Buttons::empty")
+        } else {
+            let mut first = true;
+            for &(button, name) in Buttons::BUTTON_NAMES {
+                if first {
+                    first = false;
+                } else {
+                    f.write_str(", ")?;
+                }
+
+                if self.contains(button) {
+                    write!(f, "Buttons::{}", name)?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+}
+
+impl Default for Buttons {
+    fn default() -> Buttons {
+        Buttons::empty()
+    }
+}
+
+impl BitOr for Buttons {
+    type Output = Buttons;
+
+    fn bitor(self, rhs: Buttons) -> Buttons {
+        Buttons(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for Buttons {
+    fn bitor_assign(&mut self, rhs: Buttons) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl BitAnd for Buttons {
+    type Output = Buttons;
+
+    fn bitand(self, rhs: Buttons) -> Buttons {
+        Buttons(self.0 & rhs.0)
+    }
+}
+
+impl BitAndAssign for Buttons {
+    fn bitand_assign(&mut self, rhs: Buttons) {
+        self.0 &= rhs.0;
     }
 }
 
