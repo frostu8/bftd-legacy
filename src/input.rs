@@ -33,10 +33,20 @@ impl<T: AsRef<[Inputs]>> View<T> {
     pub fn direction(&self) -> Direction {
         self.inputs().last().unwrap().direction
     }
+
+    /// The buttons being held on the last frame.
+    pub fn buttons(&self) -> Buttons {
+        self.inputs().last().unwrap().buttons
+    }
+
+    /// The inputs being held on the last frame.
+    pub fn last(&self) -> Inputs {
+        *self.inputs().last().unwrap()
+    }
 }
 
 /// A single frame of inputs.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Inputs {
     /// The direction.
     pub direction: Direction,
@@ -176,13 +186,13 @@ impl Debug for Buttons {
         } else {
             let mut first = true;
             for &(button, name) in Buttons::BUTTON_NAMES {
-                if first {
-                    first = false;
-                } else {
-                    f.write_str(" | ")?;
-                }
-
                 if self.contains(button) {
+                    if first {
+                        first = false;
+                    } else {
+                        f.write_str(" | ")?;
+                    }
+
                     write!(f, "Buttons::{}", name)?;
                 }
             }
