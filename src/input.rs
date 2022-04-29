@@ -1,7 +1,7 @@
-//! Input scanning and reading.
+//! Input data and structs.
 
 use std::fmt::{self, Debug, Formatter};
-use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign};
+use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign, Not};
 
 /// A view into a set of inputs for each frame.
 ///
@@ -143,14 +143,29 @@ impl Buttons {
         Buttons(0)
     }
 
+    /// The complete set of buttons.
+    pub const fn all() -> Buttons {
+        Buttons(Buttons::A.0 | Buttons::B.0 | Buttons::C.0)
+    }
+
     /// Checks if `self` is empty.
     pub const fn is_empty(self) -> bool {
         self.0 == Buttons::empty().0
     }
 
-    /// Checks if all buttons contained in `other` are contained in `self`.
+    /// Removes the buttons in `other` from `self`.
+    pub fn remove(&mut self, other: Buttons) {
+        *self &= !other;
+    }
+
+    /// Inserts the buttons in `other` to `self`.
+    pub fn insert(&mut self, other: Buttons) {
+        *self |= other;
+    }
+
+    /// Checks if all buttons in `other` are in `self`.
     pub const fn contains(self, other: Buttons) -> bool {
-        self & other == other
+        self.0 & other.0 == other.0
     }
 }
 
@@ -208,6 +223,14 @@ impl BitAnd for Buttons {
 impl BitAndAssign for Buttons {
     fn bitand_assign(&mut self, rhs: Buttons) {
         self.0 &= rhs.0;
+    }
+}
+
+impl Not for Buttons {
+    type Output = Buttons;
+    
+    fn not(self) -> Buttons {
+        Buttons(!self.0 & Buttons::all().0)
     }
 }
 
