@@ -47,7 +47,11 @@ impl Player {
     pub fn update(&mut self, inputs: Inputs) -> Result<(), Error> {
         // add the input; gaurantees we never have a zero-size input
         self.inputs.push(inputs);
-        let _view = View::new(&self.inputs);
+        let view = View::new(&self.inputs);
+
+        if view.last() != Inputs::default() {
+            println!("{:?}", view.last());
+        }
 
         Ok(())
     }
