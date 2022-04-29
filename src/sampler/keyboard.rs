@@ -28,6 +28,7 @@ pub struct Keyboard {
 // to be honest, we may just want to use an adapter to adapt keyboard inputs to
 // gamepad inputs, so we really only have to implement the gamepad input
 // handler, but it may not work as well.
+// TODO: also fix input tunneling
 impl Keyboard {
     /// Creates a new `Keyboard` sampler.
     pub fn new(mapping: Mapping) -> Keyboard {

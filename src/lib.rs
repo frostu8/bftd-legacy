@@ -21,14 +21,13 @@ use ggez::graphics::{self, Image};
 use battle::{Battle, FRAMES_PER_SECOND};
 use input::Inputs;
 use fsm::{Fsm, State, Frame, Sprite};
-use sampler::{keyboard::Keyboard, Sampler};
 
 use anyhow::Error;
 
 /// The main game state.
 pub struct Game {
     battle: Battle,
-    inputs: Sampler,
+    sampler: sampler::Keyboard,
 }
 
 impl Game {
@@ -48,7 +47,7 @@ impl Game {
 
         Ok(Game {
             battle: Battle::new(gdfsm.clone(), gdfsm),
-            inputs: Sampler::Keyboard(Keyboard::new(Default::default())),
+            sampler: sampler::Keyboard::new(Default::default()),
         })
     }
 }
@@ -67,9 +66,7 @@ impl EventHandler for Game {
         }
 
         if !repeat {
-            match &mut self.inputs {
-                Sampler::Keyboard(k) => k.key_down(keycode),
-            }
+            self.sampler.key_down(keycode);
         }
     }
 
@@ -79,14 +76,12 @@ impl EventHandler for Game {
         keycode: KeyCode,
         _keymods: KeyMods,
     ) {
-        match &mut self.inputs {
-            Sampler::Keyboard(k) => k.key_up(keycode),
-        }
+        self.sampler.key_up(keycode);
     }
 
     fn update(&mut self, cx: &mut Context) -> ggez::GameResult {
         while timer::check_update_time(cx, FRAMES_PER_SECOND) {
-            self.battle.update(self.inputs.sample(), Inputs::default()).unwrap();
+            self.battle.update(self.sampler.sample(), Inputs::default()).unwrap();
         }
 
         Ok(())

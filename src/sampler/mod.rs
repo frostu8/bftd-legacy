@@ -1,24 +1,13 @@
 //! Input sampling utilities.
+//!
+//! An input sampler is to gather events from the OS about connected controllers
+//! and keyboards, and convert those inputs into a platform-independent version.
+//!
+//! An input sampler should also prevent "input tunneling," meaning if a button
+//! is down, then up within a frame, the input sampler should sample 1 frame of
+//! that button being pressed.
 
 pub mod keyboard;
 
-use crate::input::Inputs;
-
-/// An input sampler.
-///
-/// An input sampler is responsible for processing input events between frame
-/// updates and putting them together into one, platform-independent sample of
-/// inputs.
-pub enum Sampler {
-    Keyboard(keyboard::Keyboard),
-}
-
-impl Sampler {
-    /// Samples the inputs on the current frame.
-    pub fn sample(&self) -> Inputs {
-        match self {
-            Sampler::Keyboard(k) => k.sample(),
-        }
-    }
-}
+pub use keyboard::Keyboard;
 
