@@ -101,9 +101,10 @@ impl Default for Mapping {
 
         let mut button_map = HashMap::new();
 
-        button_map.insert(KeyCode::U, Buttons::A);
-        button_map.insert(KeyCode::I, Buttons::B);
-        button_map.insert(KeyCode::O, Buttons::C);
+        button_map.insert(KeyCode::U, Buttons::P);
+        button_map.insert(KeyCode::I, Buttons::K);
+        button_map.insert(KeyCode::O, Buttons::S);
+        button_map.insert(KeyCode::P, Buttons::H);
 
         Mapping { direction_map, button_map }
     }

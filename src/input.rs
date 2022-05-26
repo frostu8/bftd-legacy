@@ -134,18 +134,21 @@ impl Default for Direction {
 pub struct Buttons(u8);
 
 impl Buttons {
-    /// The `A` (light attack) input.
-    pub const A: Buttons = Buttons(0b0001);
-    /// The `B` (medium attack) input.
-    pub const B: Buttons = Buttons(0b0010);
-    /// The `C` (heavy attack) input.
-    pub const C: Buttons = Buttons(0b0100);
+    /// The `P` (punch) input.
+    pub const P: Buttons = Buttons(0b0001);
+    /// The `K` (kick) input.
+    pub const K: Buttons = Buttons(0b0010);
+    /// The `S` (slash) input.
+    pub const S: Buttons = Buttons(0b0100);
+    /// The `H` (heavy slash) input.
+    pub const H: Buttons = Buttons(0b1000);
 
     /// A list of buttons matched with string representations.
     pub const BUTTON_NAMES: &'static [(Buttons, &'static str)] = &[
-        (Buttons::A, "A"),
-        (Buttons::B, "B"),
-        (Buttons::C, "C"),
+        (Buttons::P, "P"),
+        (Buttons::K, "K"),
+        (Buttons::S, "S"),
+        (Buttons::H, "H"),
     ];
 
     /// The empty set of buttons.
@@ -155,7 +158,7 @@ impl Buttons {
 
     /// The complete set of buttons.
     pub const fn all() -> Buttons {
-        Buttons(Buttons::A.0 | Buttons::B.0 | Buttons::C.0)
+        Buttons(Buttons::P.0 | Buttons::K.0 | Buttons::S.0 | Buttons::H.0)
     }
 
     /// Checks if `self` is empty.
