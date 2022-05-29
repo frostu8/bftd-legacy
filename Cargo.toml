@@ -7,21 +7,26 @@ edition = "2021"
 description = "Battle for the Domain"
 
 [dependencies]
+log = "0.4"
 ggez = "0.7"
-# for later
-#rhai = "1.6.1"
+rhai = "1.6.1"
+semver = "1.0"
+ron = "0.7"
+serde = "1.0"
 
 anyhow = "1.0"
 env_logger = "0.9"
 
+[dependencies.bftd-lib]
+path = "./lib/"
+
 [dependencies.glam]
 version = "0.20"
-features = ["serde", "mint"]
-
-[dependencies.serde]
-version = "1.0"
-features = ["derive"]
+features = ["mint"]
 
 [profile.dev]
 opt-level = 1
+
+[workspace]
+members = ["./lib/"]
 

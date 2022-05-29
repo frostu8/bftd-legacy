@@ -1,0 +1,23 @@
+Character(
+    id: "grand_dad",
+    states: [
+        (
+            name: "idle",
+            frames: [
+                (
+                    sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
+                ),
+            ],
+            script: Some("/core/idle.rhai"),
+        ),
+        (
+            name: "forward",
+            frames: [ 
+                (
+                    sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
+                ),
+            ],
+            script: Some("/core/forward.rhai"),
+        ),
+    ],
+)

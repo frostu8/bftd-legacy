@@ -12,10 +12,8 @@ mod player;
 
 pub use player::Player;
 
-use crate::fsm::Fsm;
+use crate::fsm::{Key, Fsm};
 use crate::input::Inputs;
-
-use std::sync::Arc;
 
 use glam::f32::Vec2;
 
@@ -48,8 +46,8 @@ impl Battle {
     /// The initial state is always `"idle"`.
     pub fn new(p1: Fsm, p2: Fsm) -> Battle {
         Battle {
-            p1: Player::new(p1, Vec2::new(-500., 0.), Arc::from("idle"), false),
-            p2: Player::new(p2, Vec2::new(500., 0.), Arc::from("idle"), true),
+            p1: Player::new(p1, Vec2::new(-500., 0.), Key::from("idle"), false),
+            p2: Player::new(p2, Vec2::new(500., 0.), Key::from("idle"), true),
         }
     }
 

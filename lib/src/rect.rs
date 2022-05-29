@@ -13,15 +13,15 @@ pub struct Rect {
 
 impl Rect {
     /// Creates a new `Rect` from two points.
-    pub fn new(p1: Vec2, p2: Vec2) -> Rect {
-        Rect { p1, p2 }
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32) -> Rect {
+        Rect { p1: Vec2::new(x1, y1), p2: Vec2::new(x2, y2) }
     }
 
     /// Creates a new `Rect` from a bottom-left point and a width height.
-    pub fn new_wh(p: Vec2, wh: Vec2) -> Rect {
+    pub fn new_wh(x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect {
-            p1: p,
-            p2: p + wh,
+            p1: Vec2::new(x, y),
+            p2: Vec2::new(x, y) + Vec2::new(w, h),
         }
     }
 

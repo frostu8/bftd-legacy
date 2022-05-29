@@ -9,7 +9,9 @@ pub fn main() -> Result<()> {
 
     let (mut ctx, event_loop) = ggez::ContextBuilder::new("super_simple", "ggez")
         .window_mode(WindowMode {
-            fullscreen_type: FullscreenType::Desktop,
+            width: 1280.,
+            height: 720.,
+            //fullscreen_type: FullscreenType::Desktop,
             ..Default::default()
         })
         .build()?;

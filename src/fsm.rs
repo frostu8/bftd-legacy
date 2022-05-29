@@ -1,17 +1,21 @@
 //! Finite-state machines implemented by [`Fsm`].
 
-use crate::rect::Rect;
+use bftd_lib::Rect;
 
 use glam::f32::{Affine2, Mat4, Vec2};
 
-use std::sync::Arc;
+use crate::assets::Asset;
+
+use std::rc::Rc;
 use std::ops::Deref;
 use std::collections::HashMap;
+
+use rhai::AST;
 
 use anyhow::Error;
 
 /// A cheaply-cloneable key for a finite-state machine entry.
-pub type Key = Arc<str>;
+pub type Key = Rc<str>;
 
 /// Some finite-state machine code.
 /// 
@@ -23,15 +27,29 @@ pub type Key = Arc<str>;
 /// `Fsm`s are **not** meant to be mutable. As such, an `Fsm` will only allow
 /// immutable access to it's contents. However, it also means that `Fsm` is very
 /// cheaply cloneable.
+///
+/// # Scripting
+/// Using [`rhai`], different states can be given a state script, which holds
+/// callbacks that are called upon certain events.
+/// * `onenter` is called when the `Fsm` enters the state.
+/// * `onupdate` is called when a frame advances occurs while the state is
+/// active. This is called every frame the state is active, including the frame
+/// that `onenter` is called.
+/// * `onexit` is called when the `Fsm` leaves the state, after `onupdate` is
+/// called.
+///
+/// In an event context, certain functions are exposed to get the current state,
+/// update the current state or swap the state with a new one entirely. Other
+/// functions are provided to read input, manage super freezes, or simply moving
+/// the character. See the `assets/core/` folder for shared scripts for
+/// character moveset.
 #[derive(Clone)]
 pub struct Fsm {
-    states: Arc<HashMap<Key, State>>,
+    states: Rc<HashMap<Key, State>>,
 }
 
 impl Fsm {
     /// Creates an `Fsm` from a list of states.
-    ///
-    /// This should only be used for testing, really.
     pub fn new(states: impl IntoIterator<Item = State>) -> Fsm {
         let states = states
             .into_iter()
@@ -42,7 +60,7 @@ impl Fsm {
             .collect();
 
         Fsm {
-            states: Arc::new(states),
+            states: Rc::new(states),
         }
     }
 }
@@ -61,6 +79,8 @@ pub struct State {
     pub name: Key,
     /// The list of frames in the state.
     pub frames: Vec<Frame>,
+    /// The script of the state, if there is one.
+    pub script: Option<AST>,
 }
 
 impl State {
@@ -88,9 +108,10 @@ pub struct Frame {
 }
 
 /// A [`Frame`]'s sprite.
+#[derive(Clone, Debug)]
 pub struct Sprite {
     /// The in-GPU memory of the source texture.
-    pub texture: ggez::graphics::Image,
+    pub texture: Asset<ggez::graphics::Image>,
     /// The source rectangle of the image.
     pub src: Rect,
     /// The transformations to be applied to the image, relative to the origin.
@@ -101,26 +122,26 @@ impl Sprite {
     /// Creates a new sprite from a raw GPU texture.
     pub fn new(texture: ggez::graphics::Image) -> Sprite {
         Sprite {
-            src: Rect::new(Vec2::new(0., 0.), Vec2::new(texture.width() as f32, texture.height() as f32)),
-            texture,
+            src: Rect::new_wh(0., 0., 1., 1.),
+            texture: Asset::new(texture),
             transform: Affine2::IDENTITY,
         }
     }
 
     fn offset(&self) -> Affine2 {
         Affine2::from_translation(
-            -Vec2::new(self.texture.width() as f32 / 2., self.texture.height() as f32)
+            -Vec2::new(self.width() as f32 / 2., self.height() as f32)
         )
     }
 
     /// The width of the untransformed sprite.
     pub fn width(&self) -> f32 {
-        self.src.width()
+        self.src.width() * self.texture.width() as f32
     }
 
     /// The height of the untransformed sprite.
     pub fn height(&self) -> f32 {
-        self.src.height()
+        self.src.height() * self.texture.height() as f32
     }
 
     /// Draws the sprite to a drawing context.
@@ -138,7 +159,7 @@ impl Sprite {
         };
 
         // draw sprite to screen
-        ggez::graphics::draw(cx, &self.texture, params)
+        ggez::graphics::draw(cx, self.texture.as_ref(), params)
             .map_err(Into::into)
     }
 }

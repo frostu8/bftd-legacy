@@ -3,29 +3,29 @@
 #[macro_use]
 extern crate anyhow;
 
+#[macro_use]
+extern crate log;
+
+pub mod assets;
 pub mod battle;
 pub mod fsm;
 pub mod input;
-pub mod rect;
 pub mod sampler;
-
-use std::sync::Arc;
-
-use glam::Vec2;
 
 use ggez::{Context, timer};
 use ggez::event::EventHandler;
 use ggez::input::keyboard::{KeyCode, KeyMods};
-use ggez::graphics::{self, Image};
+use ggez::graphics;
 
 use battle::{Battle, FRAMES_PER_SECOND};
 use input::Inputs;
-use fsm::{Fsm, State, Frame, Sprite};
+use assets::Bundle;
 
 use anyhow::Error;
 
 /// The main game state.
 pub struct Game {
+    core_bundle: Bundle,
     battle: Battle,
     sampler: sampler::Keyboard,
 }
@@ -35,7 +35,9 @@ impl Game {
     pub fn new(cx: &mut Context) -> Result<Game, Error> {
         const ELEVATION: f32 = 100.0;
 
-        let gdfsm = granddad_fsm(cx)?;
+        let mut core_bundle = Bundle::new("./assets/")?;
+
+        let gdfsm = core_bundle.load_character(cx, "/characters/grand_dad.ron").unwrap();
 
         let rect = ggez::graphics::Rect {
             x: -960.0,
@@ -46,6 +48,7 @@ impl Game {
         graphics::set_screen_coordinates(cx, rect).unwrap();
 
         Ok(Game {
+            core_bundle,
             battle: Battle::new(gdfsm.clone(), gdfsm),
             sampler: sampler::Keyboard::new(Default::default()),
         })
@@ -96,23 +99,4 @@ impl EventHandler for Game {
     }
 }
 
-fn granddad_fsm(cx: &mut Context) -> Result<Fsm, Error> {
-    // load idle texture
-    let texture = include_bytes!("../granddad.png");
-    let image = Image::from_bytes(cx, texture)?;
-
-    let mut idle_sprite = Sprite::new(image);
-    idle_sprite.transform = glam::Affine2::from_scale(Vec2::new(0.625, 0.625));
-
-    let idle = State {
-        name: Arc::from("idle"),
-        frames: vec![
-            Frame {
-                sprite: Some(idle_sprite),
-            }
-        ],
-    };
-
-    Ok(Fsm::new([idle]))
-}
 
