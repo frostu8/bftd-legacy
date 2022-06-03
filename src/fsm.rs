@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::ops::Deref;
 use std::collections::HashMap;
 
-use rhai::AST;
+use crate::battle::script::AST;
 
 use anyhow::Error;
 
@@ -43,7 +43,7 @@ pub type Key = Rc<str>;
 /// functions are provided to read input, manage super freezes, or simply moving
 /// the character. See the `assets/core/` folder for shared scripts for
 /// character moveset.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fsm {
     states: Rc<HashMap<Key, State>>,
 }
@@ -74,6 +74,7 @@ impl Deref for Fsm {
 }
 
 /// A single state in a [`Fsm`].
+#[derive(Clone, Debug)]
 pub struct State {
     /// The name of the state.
     pub name: Key,
@@ -102,6 +103,7 @@ impl State {
 }
 
 /// A single frame in a [`State`].
+#[derive(Clone, Debug)]
 pub struct Frame {
     /// The sprite to display for this frame.
     pub sprite: Option<Sprite>,

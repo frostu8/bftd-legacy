@@ -1,11 +1,11 @@
 Character(
-    id: "grand_dad",
+    id: "hh",
     states: [
         (
             name: "idle",
             frames: [
                 (
-                    sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
+                    sprite: Some( ( texture: "/img/hh/idle.png" ) ),
                 ),
             ],
             script: Some("/core/idle.rhai"),
@@ -14,7 +14,7 @@ Character(
             name: "forward",
             frames: [ 
                 (
-                    sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
+                    sprite: Some( ( texture: "/img/hh/idle.png" ) ),
                 ),
             ],
             script: Some("/core/forward.rhai"),
@@ -23,7 +23,7 @@ Character(
             name: "backward",
             frames: [ 
                 (
-                    sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
+                    sprite: Some( ( texture: "/img/hh/idle.png" ) ),
                 ),
             ],
             script: Some("/core/backward.rhai"),

@@ -9,7 +9,6 @@ description = "Battle for the Domain"
 [dependencies]
 log = "0.4"
 ggez = "0.7"
-rhai = "1.6.1"
 semver = "1.0"
 ron = "0.7"
 serde = "1.0"
@@ -23,6 +22,10 @@ path = "./lib/"
 [dependencies.glam]
 version = "0.20"
 features = ["mint"]
+
+[dependencies.rhai]
+version = "1.6.1"
+features = ["f32_float"]
 
 [profile.dev]
 opt-level = 1

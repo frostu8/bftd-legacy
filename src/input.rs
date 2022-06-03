@@ -7,8 +7,9 @@ use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign, Not};
 ///
 /// Provides utility functions for reading special inputs, directions, among
 /// other things.
-pub struct View<T: AsRef<[Inputs]>> {
-    inputs: T
+#[derive(Clone)]
+pub struct View<T> {
+    inputs: T,
 }
 
 impl<T: AsRef<[Inputs]>> View<T> {

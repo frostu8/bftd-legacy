@@ -4,9 +4,10 @@ use bftd_lib::Metadata;
 
 use anyhow::Error;
 
-use ggez::{Context, graphics::Image};
+use ggez::graphics::Image;
 
 use crate::fsm::{Key, Fsm, State, Frame, Sprite};
+use crate::Context;
 
 use std::fs::File;
 use std::path::PathBuf;
@@ -69,10 +70,6 @@ impl Bundle {
 
     /// Loads a character from a bundle.
     pub fn load_character(&mut self, cx: &mut Context, path: &str) -> Result<Fsm, Error> {
-        let mut engine = rhai::Engine::new_raw();
-
-        engine.set_max_expr_depths(0, 0);
-
         let character = self.load::<bftd_lib::Character>(cx, path)?;
 
         let mut states = Vec::new();
@@ -83,7 +80,7 @@ impl Bundle {
                     let script = self.load::<String>(cx, path)?;
 
                     // compile script
-                    let ast = engine.compile(script.as_str())?;
+                    let ast = cx.script_engine.compile(script.as_str())?;
 
                     Some(ast)
                 },
@@ -155,7 +152,7 @@ impl Loadable for Image {
 
         stream.read_to_end(&mut buf)?;
 
-        Image::from_bytes(cx, &buf).map_err(From::from)
+        Image::from_bytes(cx.ggez, &buf).map_err(From::from)
     }
 }
 
