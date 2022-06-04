@@ -1,53 +1,79 @@
 //! Input data and structs.
 
 use std::fmt::{self, Debug, Formatter};
+use std::sync::{Arc, RwLock};
+use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign, Not};
 
-/// A view into a set of inputs for each frame.
+use bytemuck::{Pod, Zeroable};
+
+/// A buffer for inputs. Not to be confused with an
+/// ["input buffer"](https://supersmashbros.fandom.com/wiki/Input_Buffering).
 ///
-/// Provides utility functions for reading special inputs, directions, among
-/// other things.
-#[derive(Clone)]
-pub struct View<T> {
-    inputs: T,
-}
+/// This is a very sepcial input data structure that uses a shared buffer to
+/// efficiently use memory. Each input set corresponds to one frame of gameplay.
+///
+/// This struct also provides utility functions for reading special inputs,
+/// directions, and reversal buffering.
+#[derive(Clone, Default)]
+pub struct Buffer(Arc<RwLock<Vec<Inputs>>>);
 
-impl<T: AsRef<[Inputs]>> View<T> {
-    /// Creates a new `View`.
-    ///
-    /// # Panics
-    /// Panics if `inputs` is empty.
-    pub fn new(inputs: T) -> View<T> {
-        assert!(inputs.as_ref().len() > 0);
-
-        View {
-            inputs,
-        }
+impl Buffer {
+    /// Creates a new `Buffer`.
+    pub fn new() -> Buffer {
+        Buffer::default()
     }
 
-    /// The inputs inside the view.
-    pub fn inputs(&self) -> &[Inputs] {
-        self.inputs.as_ref()
+    /// Returns how many inputs are in the buffer.
+    pub fn len(&self) -> usize {
+        self.0.read().unwrap().len()
+    }
+
+    /// Truncates the inputs to `len` frames.
+    pub fn truncate(&self, len: usize) {
+        self.0.write().unwrap().truncate(len)
+    }
+
+    /// Pushes a new set of inputs to the buffer.
+    pub fn push(&self, input: Inputs) {
+        self.0.write().unwrap().push(input)
     }
 
     /// The direction being held on the last frame.
     pub fn direction(&self) -> Direction {
-        self.inputs().last().unwrap().direction
+        self.last().direction
     }
 
     /// The buttons being held on the last frame.
     pub fn buttons(&self) -> Buttons {
-        self.inputs().last().unwrap().buttons
+        self.last().buttons
     }
 
     /// The inputs being held on the last frame.
     pub fn last(&self) -> Inputs {
-        *self.inputs().last().unwrap()
+        *self.0.read().unwrap().last().unwrap()
+    }
+}
+
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str("Buffer(_)")
+    }
+}
+
+impl Hash for Buffer {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        // the first input is the only relevant input when hashing
+        self.0.read().unwrap().last().hash(state)
     }
 }
 
 /// A single frame of inputs.
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Pod, Eq, Hash, Zeroable)]
+#[repr(C)]
 pub struct Inputs {
     /// The direction.
     pub direction: Direction,
@@ -69,32 +95,32 @@ impl Debug for Inputs {
 /// Internally represented by [numpad notation][1].
 ///
 /// [1]: http://www.dustloop.com/wiki/index.php/Notation
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Direction {
+#[derive(Clone, Copy, PartialEq, Pod, Eq, Hash, Zeroable)]
+#[repr(transparent)]
+pub struct Direction(u8);
+
+impl Direction {
     /// The neutral direction.
     ///
     /// This is returned in [`Direction::default()`].
-    D5 = 5,
+    pub const D5: Direction = Direction(5);
     /// The down-left direction.
-    D1 = 1,
+    pub const D1: Direction = Direction(1);
     /// The down direction.
-    D2 = 2,
+    pub const D2: Direction = Direction(2);
     /// The down-right direction.
-    D3 = 3,
+    pub const D3: Direction = Direction(3);
     /// The left direction.
-    D4 = 4,
+    pub const D4: Direction = Direction(4);
     /// The right direction.
-    D6 = 6,
+    pub const D6: Direction = Direction(6);
     /// The up-left direction.
-    D7 = 7,
+    pub const D7: Direction = Direction(7);
     /// The up direction.
-    D8 = 8,
+    pub const D8: Direction = Direction(8);
     /// The up-right direction.
-    D9 = 9,
-}
+    pub const D9: Direction = Direction(9);
 
-impl Direction {
     /// Flips the direction horizontally.
     ///
     /// # Examples
@@ -123,6 +149,12 @@ impl Direction {
     }
 }
 
+impl Debug for Direction {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Direction::D{}", self.0)
+    }
+}
+
 impl Default for Direction {
     fn default() -> Direction {
         Direction::D5
@@ -130,7 +162,7 @@ impl Default for Direction {
 }
 
 /// Button inputs.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Pod, Eq, Hash, Zeroable)]
 #[repr(transparent)]
 pub struct Buttons(u8);
 

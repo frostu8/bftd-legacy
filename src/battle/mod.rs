@@ -26,7 +26,7 @@
 pub mod script;
 
 use crate::fsm::{Key, Fsm};
-use crate::input::{Inputs, View};
+use crate::input::{self, Inputs};
 use crate::Context;
 
 use script::Scope;
@@ -98,7 +98,7 @@ pub struct Player {
     state: State,
     fsm: Fsm,
     scope: Scope<'static>,
-    inputs: Vec<Inputs>,
+    inputs: input::Buffer,
 }
 
 impl Player {
@@ -113,7 +113,7 @@ impl Player {
             state: initial_state,
             fsm,
             scope: Scope::new(),
-            inputs: Vec::new(),
+            inputs: Default::default(),
         }
     }
     
@@ -140,10 +140,7 @@ impl Player {
     ) -> Result<(), Error> {
         // add the input; gaurantees we never have a zero-size input
         self.inputs.push(inputs);
-        // TODO: fix this; copying the whole inputs into the script is too much
-        // for something that is going to run possibly more than once a frame
-        let view = View::new(self.inputs.clone());
-        self.scope.push("inputs", view);
+        self.scope.push("inputs", self.inputs.clone());
 
         let state = &self.fsm.get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?;

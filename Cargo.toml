@@ -27,6 +27,10 @@ features = ["mint"]
 version = "1.6.1"
 features = ["f32_float"]
 
+[dependencies.bytemuck]
+version = "1.9"
+features = ["derive"]
+
 [profile.dev]
 opt-level = 1
 

@@ -55,9 +55,10 @@ impl Bundle {
             }
         }
 
+        debug!("loading file \"{}\" from bundle {}...", path, self.metadata.name);
+
         // clip leading slash, if there is any
         let path = path.trim_start_matches('/');
-        debug!("loading file \"{}\" from bundle {}...", path, self.metadata.name);
         let data = T::load(cx, File::open(self.path.join(path))?).map(Arc::new)?;
 
         {

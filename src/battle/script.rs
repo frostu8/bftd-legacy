@@ -5,7 +5,7 @@ use rhai::{Shared, Module};
 
 use super::State;
 use crate::fsm::Key;
-use crate::input::{Direction, Inputs, View};
+use crate::input::{Direction, Inputs, Buffer};
 
 use std::ops::{Add, Sub, Mul, Div, Deref, Neg};
 
@@ -61,9 +61,10 @@ impl Engine {
             .register_type::<Direction>()
             .register_fn("==", |d1: Direction, d2: Direction| d1 == d2)
             .register_fn("!=", |d1: Direction, d2: Direction| d1 != d2)
-            // View impl
-            .register_type::<View<Vec<Inputs>>>()
-            .register_get("direction", |v: &mut View<Vec<Inputs>>| v.direction())
+            // Buffer impl
+            .register_type::<Buffer>()
+            .register_get("direction", |v: &mut Buffer| v.direction())
+            .register_get("buttons", |v: &mut Buffer| v.buttons())
             // State impl
             .register_type::<State>()
             .register_get_set(
