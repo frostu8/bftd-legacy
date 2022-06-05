@@ -40,7 +40,7 @@ impl LocalBattle {
             self.p2.inputs.push(cx.input.sample(self.p2.id).unwrap_or_default());
 
             self.arena.update(
-                cx,
+                cx.script_engine,
                 &self.p1.inputs,
                 &self.p2.inputs,
             )?;

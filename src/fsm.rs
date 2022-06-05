@@ -6,7 +6,7 @@ use glam::f32::{Affine2, Mat4, Vec2};
 
 use crate::assets::Asset;
 
-use std::rc::Rc;
+use std::sync::Arc;
 use std::ops::Deref;
 use std::collections::HashMap;
 
@@ -15,7 +15,7 @@ use crate::battle::script::AST;
 use anyhow::Error;
 
 /// A cheaply-cloneable key for a finite-state machine entry.
-pub type Key = Rc<str>;
+pub type Key = Arc<str>;
 
 /// Some finite-state machine code.
 /// 
@@ -45,7 +45,7 @@ pub type Key = Rc<str>;
 /// character moveset.
 #[derive(Clone, Debug)]
 pub struct Fsm {
-    states: Rc<HashMap<Key, State>>,
+    states: Arc<HashMap<Key, State>>,
 }
 
 impl Fsm {
@@ -60,7 +60,7 @@ impl Fsm {
             .collect();
 
         Fsm {
-            states: Rc::new(states),
+            states: Arc::new(states),
         }
     }
 }

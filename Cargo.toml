@@ -25,7 +25,7 @@ features = ["mint"]
 
 [dependencies.rhai]
 version = "1.6.1"
-features = ["f32_float"]
+features = ["f32_float", "sync"]
 
 [dependencies.bytemuck]
 version = "1.9"

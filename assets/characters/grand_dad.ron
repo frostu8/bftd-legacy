@@ -8,7 +8,7 @@ Character(
                     sprite: Some( ( texture: "/img/grand_dad/idle.png" ) ),
                 ),
             ],
-            script: Some("/core/idle.rhai"),
+            script: Some("/core/idle_debug.rhai"),
         ),
         (
             name: "forward",

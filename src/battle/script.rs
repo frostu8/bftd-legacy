@@ -1,13 +1,13 @@
 //! Scripting support for battles.
 
 pub use rhai::{AST, Scope};
-use rhai::{Shared, Module};
+use rhai::{Shared, Module, packages::{Package, StandardPackage}};
 
 use super::State;
 use crate::fsm::Key;
 use crate::input::{Direction, Buffer};
 
-use std::ops::{Add, Sub, Mul, Div, Deref, Neg};
+use std::ops::{Add, Sub, Mul, Div, Deref};
 
 use glam::f32::Vec2;
 
@@ -36,8 +36,12 @@ impl Engine {
         engine
             .set_max_expr_depths(0, 0)
             .register_global_module(module)
+            .register_global_module(StandardPackage::new().as_shared_module())
+            // Register on_print and on_debug
+            .on_print(move |s| info!("{}", s))
+            .on_debug(move |s, src, pos| debug!("{} @ {:?} > {}", src.unwrap_or("unknown"), pos, s))
             // Register some nonsense f32 functions.
-            .register_fn("-", f32::neg)
+            //.register_fn("-", f32::neg)
             // Vec2 impl
             .register_type::<Vec2>()
             .register_fn("vec2", Vec2::new)

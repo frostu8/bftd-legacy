@@ -55,7 +55,7 @@ impl Game {
 
         Ok(Game {
             core_bundle,
-            battle: LocalBattle::new(Arena::new(gdfsm, hhfsm), Handle::new(0), Handle::new(1)),
+            battle: LocalBattle::new(Arena::new(cx.script_engine, gdfsm, hhfsm).unwrap(), Handle::new(0), Handle::new(1)),
             script_engine,
             input,
         })

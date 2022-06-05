@@ -32,7 +32,7 @@ use crate::fsm::{Key, Fsm};
 use crate::input::Buffer as InputBuffer;
 use crate::Context;
 
-use script::Scope;
+use script::{Engine, Scope};
 
 use glam::f32::{Affine2, Vec2};
 
@@ -64,18 +64,18 @@ impl Arena {
     /// Creates a battle with p1 and p2 initialized with [`Fsm`]s `p1` and `p2`.
     ///
     /// The initial state is always `"idle"`.
-    pub fn new(p1: Fsm, p2: Fsm) -> Arena {
-        Arena {
-            p1: Player::new(p1, State::initial_p1()),
-            p2: Player::new(p2, State::initial_p2()),
-        }
+    pub fn new(engine: &Engine, p1: Fsm, p2: Fsm) -> Result<Arena, Error> {
+        Ok(Arena {
+            p1: Player::new(engine, p1, State::initial_p1())?,
+            p2: Player::new(engine, p2, State::initial_p2())?,
+        })
     }
 
     /// Processes the next frame of gameplay using the inputs provided for each
     /// player.
     pub fn update(
         &mut self,
-        cx: &mut Context,
+        engine: &Engine,
         p1: &InputBuffer,
         p2: &InputBuffer,
     ) -> Result<(), Error> {
@@ -89,8 +89,8 @@ impl Arena {
         }
 
         // first, update each player's individual state
-        self.p1.update(cx, p1)?;
-        self.p2.update(cx, p2)?;
+        self.p1.update(engine, p1)?;
+        self.p2.update(engine, p2)?;
 
         Ok(())
     }
@@ -104,24 +104,31 @@ impl Arena {
 
 /// One of two players in a battle.
 pub struct Player {
-    state: State,
     fsm: Fsm,
+    state: State,
     scope: Scope<'static>,
 }
 
 impl Player {
     /// Creates a new `Player`.
     ///
-    /// The player will start with the `initial_state` passed to it.
+    /// The player will start with the `initial_state` passed to it. The engine
+    /// is required to be passed to run initial logic.
     pub fn new(
+        engine: &Engine,
         fsm: Fsm,
         initial_state: State,
-    ) -> Player {
-        Player {
-            state: initial_state,
+    ) -> Result<Player, Error> {
+        let mut player = Player {
             fsm,
+            state: initial_state,
             scope: Scope::new(),
-        }
+        };
+
+        // evaluate idle script
+        eval(&player.state.key, &player.fsm, engine, &mut player.scope)?;
+
+        Ok(player)
     }
     
     /// The player's state.
@@ -142,37 +149,50 @@ impl Player {
     /// Updates the player's state in respect to the inputs given.
     pub fn update(
         &mut self,
-        cx: &mut Context,
+        engine: &Engine,
         inputs: &InputBuffer,
     ) -> Result<(), Error> {
         self.scope.push("inputs", inputs.clone());
 
-        let state = &self.fsm.get(&self.state.key)
+        let state = &self.fsm
+            .get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?;
+
         while let Some(script) = &state.script {
             // run the script and update the character's state
             self.scope.push("state", self.state.clone());
-            cx.script_engine
-                .call_fn(&mut self.scope, script, "onupdate", ())
-                .map_err(|e| anyhow!("{}", e))?;
+            engine.call_fn_raw(
+                &mut self.scope,
+                script,
+                true,
+                true,
+                "onupdate",
+                None,
+                [],
+            )?;
 
             // see how the script updated the state
             let state = self.scope
                 .get_value::<State>("state")
-                .expect("state should exist");
+                .ok_or_else(|| anyhow!("script replaced `state` variable"))?;
+
+            let key_old = self.state.key.clone();
 
             if state != self.state {
                 // TODO: do state processing
 
                 // update the state
-                let state_switch = state.key != self.state.key;
                 self.state = state;
+            }
 
-                if !state_switch {
-                    break;
-                }
+            if self.state.key != key_old {
+                eval(
+                    &self.state.key,
+                    &self.fsm,
+                    engine,
+                    &mut self.scope,
+                )?;
             } else {
-                // break if there was no change
                 break;
             }
         }
@@ -203,11 +223,29 @@ impl Player {
     }
 }
 
+fn eval(
+    key: &str,
+    fsm: &Fsm,
+    engine: &Engine,
+    scope: &mut Scope<'static>,
+) -> Result<(), Error> {
+    let state = fsm
+        .get(key)
+        .ok_or_else(|| anyhow!("player in an invalid state"))?;
+
+    if let Some(script) = &state.script {
+        engine
+            .eval_ast_with_scope::<()>(scope, script)
+            .map_err(From::from)
+    } else {
+        Ok(())
+    }
+}
+
 /// An entity's state.
 ///
-/// This is what will be saved in the frame snapshot when rollback is
-/// implemented. It should be cheaply cloneable and exposable to the scripting
-/// framework.
+/// This should be cheaply cloneable as it will be exposed to the scripting
+/// framework later.
 #[derive(Clone, Debug, PartialEq)]
 pub struct State {
     /// The position of the entity in the [`Arena`].
