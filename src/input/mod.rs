@@ -1,5 +1,7 @@
 //! Input data and structs.
 
+pub mod sampler;
+
 use std::fmt::{self, Debug, Formatter};
 use std::sync::{Arc, RwLock};
 use std::hash::{Hash, Hasher};

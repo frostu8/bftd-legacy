@@ -24,9 +24,12 @@
 //!   and update their states accordingly.
 
 pub mod script;
+mod local;
+
+pub use local::LocalBattle;
 
 use crate::fsm::{Key, Fsm};
-use crate::input::{self, Inputs};
+use crate::input::Buffer as InputBuffer;
 use crate::Context;
 
 use script::Scope;
@@ -47,10 +50,11 @@ pub const STAGE_SIZE: f32 = 10_000.0;
 /// The maximum horizontal distance two players can be away from each other.
 pub const MAX_HORIZONTAL_DISTANCE: f32 = 3_000.0;
 
-/// A battle.
+/// A headless arena.
 ///
-/// Handles the updating and rendering of the battle to the screen. Does
-/// **not** handle background shaders; you can go crazy with that.
+/// This only handles the frame-by-frame logic of updating the match state, the
+/// player's positions, health bars and super freezes. It also has a
+/// convenience function for drawing the battle to the screen.
 pub struct Arena {
     p1: Player,
     p2: Player,
@@ -69,7 +73,12 @@ impl Arena {
 
     /// Processes the next frame of gameplay using the inputs provided for each
     /// player.
-    pub fn update(&mut self, cx: &mut Context, p1: Inputs, p2: Inputs) -> Result<(), Error> {
+    pub fn update(
+        &mut self,
+        cx: &mut Context,
+        p1: &InputBuffer,
+        p2: &InputBuffer,
+    ) -> Result<(), Error> {
         // do flip post-processing after update
         if self.p1.pos().x < self.p2.pos().x {
             self.p1.state_mut().flipped = false;
@@ -98,7 +107,6 @@ pub struct Player {
     state: State,
     fsm: Fsm,
     scope: Scope<'static>,
-    inputs: input::Buffer,
 }
 
 impl Player {
@@ -113,7 +121,6 @@ impl Player {
             state: initial_state,
             fsm,
             scope: Scope::new(),
-            inputs: Default::default(),
         }
     }
     
@@ -136,11 +143,9 @@ impl Player {
     pub fn update(
         &mut self,
         cx: &mut Context,
-        inputs: Inputs,
+        inputs: &InputBuffer,
     ) -> Result<(), Error> {
-        // add the input; gaurantees we never have a zero-size input
-        self.inputs.push(inputs);
-        self.scope.push("inputs", self.inputs.clone());
+        self.scope.push("inputs", inputs.clone());
 
         let state = &self.fsm.get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?;

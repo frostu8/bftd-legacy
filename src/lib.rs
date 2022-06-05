@@ -10,17 +10,16 @@ pub mod assets;
 pub mod battle;
 pub mod fsm;
 pub mod input;
-pub mod sampler;
 
-use ggez::timer;
-use ggez::event::EventHandler;
+use ggez::event::{Axis, Button, EventHandler};
 use ggez::input::keyboard::{KeyCode, KeyMods};
+use ggez::input::gamepad::GamepadId;
 use ggez::graphics;
 
 use std::ops::{Deref, DerefMut};
 
-use battle::{Arena, FRAMES_PER_SECOND, script::Engine};
-use input::Inputs;
+use battle::{LocalBattle, Arena, script::Engine};
+use input::sampler::{Input, Handle};
 use assets::Bundle;
 
 use anyhow::Error;
@@ -28,9 +27,9 @@ use anyhow::Error;
 /// The main game state.
 pub struct Game {
     core_bundle: Bundle,
-    battle: Arena,
     script_engine: Engine,
-    sampler: sampler::Keyboard,
+    input: Input,
+    battle: LocalBattle,
 }
 
 impl Game {
@@ -40,7 +39,8 @@ impl Game {
 
         let script_engine = Engine::new();
         let mut core_bundle = Bundle::new("./assets/")?;
-        let mut cx = Context::new(cx, &script_engine);
+        let mut input = Input::new(cx);
+        let mut cx = Context::new(cx, &script_engine, &mut input);
 
         let gdfsm = core_bundle.load_character(&mut cx, "/characters/grand_dad.ron").unwrap();
         let hhfsm = core_bundle.load_character(&mut cx, "/characters/hh.ron").unwrap();
@@ -55,9 +55,9 @@ impl Game {
 
         Ok(Game {
             core_bundle,
-            battle: Arena::new(gdfsm, hhfsm),
+            battle: LocalBattle::new(Arena::new(gdfsm, hhfsm), Handle::new(0), Handle::new(1)),
             script_engine,
-            sampler: sampler::Keyboard::new(Default::default()),
+            input,
         })
     }
 }
@@ -76,7 +76,7 @@ impl EventHandler for Game {
         }
 
         if !repeat {
-            self.sampler.key_down(keycode);
+            self.input.key_down(keycode);
         }
     }
 
@@ -86,14 +86,31 @@ impl EventHandler for Game {
         keycode: KeyCode,
         _keymods: KeyMods,
     ) {
-        self.sampler.key_up(keycode);
+        self.input.key_up(keycode);
+    }
+
+    fn gamepad_button_down_event(
+        &mut self,
+        _ctx: &mut ggez::Context,
+        btn: Button,
+        id: GamepadId
+    ) {
+        self.input.button_down(btn, id);
+    }
+
+    fn gamepad_axis_event(
+        &mut self,
+        _ctx: &mut ggez::Context,
+        axis: Axis,
+        value: f32,
+        id: GamepadId
+    ) {
+        self.input.axis(axis, value, id);
     }
 
     fn update(&mut self, cx: &mut ggez::Context) -> ggez::GameResult {
-        while timer::check_update_time(cx, FRAMES_PER_SECOND) {
-            let mut cx = Context::new(cx, &self.script_engine);
-            self.battle.update(&mut cx, self.sampler.sample(), Inputs::default()).unwrap();
-        }
+        let mut cx = Context::new(cx, &self.script_engine, &mut self.input);
+        self.battle.update(&mut cx).unwrap();
 
         Ok(())
     }
@@ -102,7 +119,7 @@ impl EventHandler for Game {
         graphics::clear(cx, [0.0, 0.0, 0.0, 1.0].into());
 
         {
-            let mut cx = Context::new(cx, &self.script_engine);
+            let mut cx = Context::new(cx, &self.script_engine, &mut self.input);
             self.battle.draw(&mut cx).unwrap();
         }
 
@@ -114,14 +131,16 @@ impl EventHandler for Game {
 pub struct Context<'a> {
     ggez: &'a mut ggez::Context,
     script_engine: &'a Engine,
+    input: &'a mut Input,
 }
 
 impl<'a> Context<'a> {
     pub fn new(
         ggez: &'a mut ggez::Context,
         script_engine: &'a Engine,
+        input: &'a mut Input,
     ) -> Context<'a> {
-        Context { ggez, script_engine }
+        Context { ggez, script_engine, input }
     }
 }
 

@@ -5,7 +5,7 @@ use rhai::{Shared, Module};
 
 use super::State;
 use crate::fsm::Key;
-use crate::input::{Direction, Inputs, Buffer};
+use crate::input::{Direction, Buffer};
 
 use std::ops::{Add, Sub, Mul, Div, Deref, Neg};
 
