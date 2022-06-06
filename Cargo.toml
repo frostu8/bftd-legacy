@@ -12,9 +12,13 @@ ggez = "0.7"
 semver = "1.0"
 ron = "0.7"
 serde = "1.0"
+bevy_tasks = "0.7"
 
 anyhow = "1.0"
 env_logger = "0.9"
+
+backroll = "0.4"
+backroll_transport_udp = "0.4"
 
 [dependencies.bftd-lib]
 path = "./lib/"

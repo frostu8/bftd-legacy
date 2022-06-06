@@ -25,12 +25,16 @@
 
 pub mod script;
 mod local;
+mod net;
 
 pub use local::LocalBattle;
+pub use net::{NetBattle, NetPlayer};
 
 use crate::fsm::{Key, Fsm};
 use crate::input::Buffer as InputBuffer;
 use crate::Context;
+
+use std::hash::{Hash, Hasher};
 
 use script::{Engine, Scope};
 
@@ -279,6 +283,21 @@ impl State {
             key: Key::from("idle"),
             frame: 0,
         }
+    }
+}
+
+impl Hash for State {
+    fn hash<H>(&self, hasher: &mut H)
+    where
+        H: Hasher,
+    {
+        // write vec
+        hasher.write(&self.pos.x.to_ne_bytes());
+        hasher.write(&self.pos.y.to_ne_bytes());
+
+        self.flipped.hash(hasher);
+        self.key.hash(hasher);
+        self.frame.hash(hasher);
     }
 }
 

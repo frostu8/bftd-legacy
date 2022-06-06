@@ -20,6 +20,7 @@ pub struct Input {
 
 /// A handle to a single input device.
 #[derive(Clone, Copy)]
+// TODO: this should be called "InputHandle"
 pub struct Handle(usize);
 
 impl Handle {

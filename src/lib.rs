@@ -22,6 +22,8 @@ use battle::{LocalBattle, Arena, script::Engine};
 use input::sampler::{Input, Handle};
 use assets::Bundle;
 
+use bevy_tasks::TaskPool;
+
 use anyhow::Error;
 
 /// The main game state.
@@ -30,6 +32,7 @@ pub struct Game {
     script_engine: Engine,
     input: Input,
     battle: LocalBattle,
+    task_pool: TaskPool,
 }
 
 impl Game {
@@ -38,9 +41,10 @@ impl Game {
         const ELEVATION: f32 = 100.0;
 
         let script_engine = Engine::new();
+        let task_pool = TaskPool::new();
         let mut core_bundle = Bundle::new("./assets/")?;
         let mut input = Input::new(cx);
-        let mut cx = Context::new(cx, &script_engine, &mut input);
+        let mut cx = Context::new(cx, &script_engine, &mut input, &task_pool);
 
         let gdfsm = core_bundle.load_character(&mut cx, "/characters/grand_dad.ron").unwrap();
         let hhfsm = core_bundle.load_character(&mut cx, "/characters/hh.ron").unwrap();
@@ -58,7 +62,12 @@ impl Game {
             battle: LocalBattle::new(Arena::new(cx.script_engine, gdfsm, hhfsm).unwrap(), Handle::new(0), Handle::new(1)),
             script_engine,
             input,
+            task_pool: TaskPool::new(),
         })
+    }
+
+    fn get_context<'a>(&'a mut self, cx: &'a mut ggez::Context) -> Context<'a> {
+        Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool)
     }
 }
 
@@ -109,7 +118,7 @@ impl EventHandler for Game {
     }
 
     fn update(&mut self, cx: &mut ggez::Context) -> ggez::GameResult {
-        let mut cx = Context::new(cx, &self.script_engine, &mut self.input);
+        let mut cx = Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool);
         self.battle.update(&mut cx).unwrap();
 
         Ok(())
@@ -119,7 +128,7 @@ impl EventHandler for Game {
         graphics::clear(cx, [0.0, 0.0, 0.0, 1.0].into());
 
         {
-            let mut cx = Context::new(cx, &self.script_engine, &mut self.input);
+            let mut cx = Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool);
             self.battle.draw(&mut cx).unwrap();
         }
 
@@ -132,6 +141,7 @@ pub struct Context<'a> {
     ggez: &'a mut ggez::Context,
     script_engine: &'a Engine,
     input: &'a mut Input,
+    task_pool: &'a TaskPool,
 }
 
 impl<'a> Context<'a> {
@@ -139,8 +149,9 @@ impl<'a> Context<'a> {
         ggez: &'a mut ggez::Context,
         script_engine: &'a Engine,
         input: &'a mut Input,
+        task_pool: &'a TaskPool,
     ) -> Context<'a> {
-        Context { ggez, script_engine, input }
+        Context { ggez, script_engine, input, task_pool }
     }
 }
 
