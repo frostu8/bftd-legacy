@@ -1,23 +1,50 @@
-use bftd::Game;
+use anyhow::Error;
 
-use ggez::conf::{FullscreenType, WindowMode};
+use winit::{
+    dpi::LogicalSize,
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
-use anyhow::Result;
+use bftd::render::{Drawable, Surface, Sprite};
 
-pub fn main() -> Result<()> {
+pub fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let (mut ctx, event_loop) = ggez::ContextBuilder::new("super_simple", "ggez")
-        .window_mode(WindowMode {
-            width: 1280.,
-            height: 720.,
-            //fullscreen_type: FullscreenType::Desktop,
-            ..Default::default()
-        })
-        .build()?;
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_min_inner_size(LogicalSize::new(0, 100))
+        .build(&event_loop)
+        .unwrap();
 
-    let game = Game::new(&mut ctx)?;
+    let mut gfx_surface = Surface::new(&window)?;
 
-    ggez::event::run(ctx, event_loop, game)
+    let tex = gfx_surface.load_texture(std::fs::File::open("assets/img/grand_dad/idle.png").unwrap()).unwrap();
+    let sprite = Sprite::new(tex);
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(size),
+                ..
+            } => {
+                gfx_surface.resize(size.width, size.height);
+                window.request_redraw();
+            }
+            Event::RedrawRequested(_) => {
+                gfx_surface.begin(|cx| {
+                    sprite.draw(cx);
+                });
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => {}
+        }
+    });
 }
 

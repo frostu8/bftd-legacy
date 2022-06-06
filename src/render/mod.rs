@@ -5,22 +5,31 @@
 
 mod sprite;
 
+pub use sprite::Sprite;
+
 use pollster::FutureExt as _;
 
 use wgpu::{
     Adapter, Backends, Instance, Device, Queue, TextureUsages, PresentMode,
     SurfaceConfiguration, TextureDescriptor, Extent3d, TextureFormat,
-    TextureDimension, CommandEncoder, TextureView,
+    TextureDimension, CommandEncoder, TextureView, util::DeviceExt,
 };
 use winit::window::Window;
 
 use std::ops::{Deref, DerefMut};
+use std::io::{Read, Seek, BufReader};
 
 use anyhow::Error;
 
-/// A surface.
+/// A ready-to-draw surface.
+///
+/// Cheaply cloneable.
 pub struct Surface {
-    target: Target,
+    adapter: Adapter,
+    device: Device,
+    queue: Queue,
+    surface: wgpu::Surface,
+    surface_config: SurfaceConfiguration,
 
     sprite: sprite::Layout,
 }
@@ -70,7 +79,7 @@ impl Surface {
         let swapchain_format = surface.get_preferred_format(&adapter).unwrap();
 
         // configure the surface
-        let config = SurfaceConfiguration {
+        let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: size.width,
@@ -78,43 +87,103 @@ impl Surface {
             present_mode: PresentMode::Mailbox,
         };
 
-        surface.configure(&device, &config);
-
-        // build target
-        let target = Target { adapter, device, queue, surface_config: config };
+        surface.configure(&device, &surface_config);
 
         Ok(Surface {
             // build the default render layouts
-            sprite: sprite::Layout::new(&target),
-            // finalize with target
-            target,
+            sprite: sprite::Layout::new(&device, &surface_config),
+            // finalize
+            adapter,
+            device,
+            queue,
+            surface,
+            surface_config,
         })
+    }
+
+    /// Resizes the swapchain texture.
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+        self.surface.configure(&self.device, &self.surface_config);
+
+        self.sprite.reconfigure(&self.surface_config);
     }
 
     /// Begins a render frame, calls the closure and finalizes the frame.
     pub fn begin<F>(&mut self, f: F)
     where
-        F: FnOnce(Renderer),
+        F: FnOnce(&mut Renderer),
     {
-    }
+        let frame = self
+            .surface
+            .get_current_texture()
+            .expect("Failed to acquire next swap chain texture");
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
-    /// Creates a 2D texture.
-    pub fn create_texture(&self, width: u32, height: u32) -> Texture {
-        let texture = self.target.device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8Uint,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST,
+        let mut encoder =
+            self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        {
+            // clear screen
+            let _rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+        }
+
+        f(&mut Renderer {
+            cx: self,
+            view,
+            encoder: &mut encoder,
         });
 
-        Texture {
+        self.queue.submit(Some(encoder.finish()));
+        frame.present();
+    }
+
+    /// Loads a 2D texture as an image from a stream.
+    pub fn load_texture<R>(&self, read: R) -> Result<Texture, Error>
+    where
+        R: Read + Seek,
+    {
+        let image = image::io::Reader::new(BufReader::new(read))
+            .with_guessed_format()?
+            .decode()?
+            .into_rgba8();
+
+        let texture = self.device.create_texture_with_data(
+            &self.queue,
+            &TextureDescriptor {
+                label: None,
+                size: Extent3d {
+                    width: image.width(),
+                    height: image.height(),
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8UnormSrgb,
+                usage: TextureUsages::TEXTURE_BINDING
+                    | TextureUsages::COPY_DST,
+            },
+            image.as_raw(),
+        );
+
+        Ok(Texture {
             texture,
-            dims: (width, height),
-        }
+            dims: (image.width(), image.height()),
+        })
     }
 }
 
@@ -123,7 +192,7 @@ pub struct Renderer<'a> {
     cx: &'a mut Surface,
 
     view: TextureView,
-    encoder: CommandEncoder,
+    encoder: &'a mut CommandEncoder,
 }
 
 impl<'a> Deref for Renderer<'a> {
@@ -140,15 +209,6 @@ impl<'a> DerefMut for Renderer<'a> {
     }
 }
 
-/// A collection of [`wgpu`] structs used to execute graphics commands.
-#[doc(hidden)]
-pub struct Target {
-    pub adapter: Adapter,
-    pub device: Device,
-    pub queue: Queue,
-    pub surface_config: SurfaceConfiguration,
-}
-
 /// A texture.
 pub struct Texture {
     texture: wgpu::Texture,
@@ -156,15 +216,6 @@ pub struct Texture {
 }
 
 impl Texture {
-    /// Replaces the texture's data with data from a buffer.
-    ///
-    /// The function will do its best to decode the texture from magic numbers
-    /// or encoding hints.
-    pub fn load(&mut self, buf: &[u8]) -> Result<(), Error> {
-        //let image = image::load_from_memory(buf);
-        Ok(())
-    }
-
     /// The width of the texture.
     pub fn width(&self) -> u32 {
         self.dims.0

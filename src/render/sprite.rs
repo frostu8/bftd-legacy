@@ -1,6 +1,6 @@
 //! Sprite renderer.
 
-use super::{Target, Texture, Drawable, Renderer};
+use super::{Texture, Drawable, Renderer};
 
 use wgpu::{
     include_wgsl, PipelineLayoutDescriptor, RenderPipelineDescriptor,
@@ -12,7 +12,7 @@ use wgpu::{
     BufferUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations,
     LoadOp,
 };
-use glam::f32::{Affine2, Vec2};
+use glam::f32::{Affine2, Mat3, Mat4, Vec2};
 use bftd_lib::Rect;
 
 use std::mem;
@@ -22,15 +22,19 @@ use bytemuck::{Pod, Zeroable};
 /// Sprite pipeline layout.
 pub struct Layout {
     bind_group_layout: BindGroupLayout,
-
     layout: PipelineLayout,
     pipeline: RenderPipeline,
+
+    sampler: wgpu::Sampler,
     clip: Affine2,
 }
 
 impl Layout {
     /// Creates a new `Layout`.
-    pub fn new(Target { device, surface_config, .. }: &Target) -> Layout {
+    pub fn new(
+        device: &wgpu::Device,
+        surface_config: &wgpu::SurfaceConfiguration,
+    ) -> Layout {
         let vertex_size = mem::size_of::<Vertex>();
 
         let shader = device.create_shader_module(&include_wgsl!("sprite.wgsl"));
@@ -48,6 +52,24 @@ impl Layout {
                     },
                     count: None,
                 },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float {
+                            filterable: true,
+                        },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                }
             ],
         });
         let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -92,16 +114,30 @@ impl Layout {
             multiview: None,
         });
 
+        // create default sampler
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
         Layout {
             bind_group_layout,
             layout,
             pipeline,
+
+            sampler,
             clip: get_clip_transform(surface_config),
         }
     }
 
     /// Reconfigures the layout.
-    pub fn reconfigure(&mut self, Target { surface_config, .. }: &Target) {
+    pub fn reconfigure(&mut self, surface_config: &wgpu::SurfaceConfiguration) {
         self.clip = get_clip_transform(surface_config);
     }
 }
@@ -124,26 +160,38 @@ fn get_clip_transform(config: &SurfaceConfiguration) -> Affine2 {
     // Our clip matrix aligns (0, 0) to the bottom left corner of the screen.
     // It also normalizes the dimensions of the graphics space so that it is
     // 1.0 unit tall.
-    let norm_width = config.width as f32 / config.height as f32;
+    let norm_width = config.height as f32 / config.width as f32;
     
-    Affine2::from_scale(Vec2::new(1.0, norm_width))
-        * Affine2::from_scale(Vec2::new(0.5, 0.5))
-        * Affine2::from_translation(Vec2::new(1.0, 1.0))
+    Affine2::from_scale(Vec2::new(1., -1.))
+        * Affine2::from_translation(-Vec2::new(0.0, 1.0))
+        * Affine2::from_scale(Vec2::new(norm_width, 1.0))
+        * Affine2::from_scale(Vec2::new(2.0, 2.0))
 }
 
 /// A sprite to be rendered to the screen.
-pub struct Sprite<'a> {
-    pub texture: &'a Texture,
+pub struct Sprite {
+    pub texture: Texture,
     pub src: Rect,
     pub transform: Affine2,
 }
 
-impl<'a> Drawable for Sprite<'a> {
+impl Sprite {
+    /// Creates a new sprite.
+    pub fn new(texture: Texture) -> Sprite {
+        Sprite {
+            texture,
+            src: Rect { p1: Vec2::ZERO, p2: Vec2::ONE },
+            transform: Default::default(),
+        }
+    }
+}
+
+impl Drawable for Sprite {
     fn draw(&self, renderer: &mut Renderer) {
         // normalize width
-        let x = self.texture.width() as f32 / self.texture.height() as f32;
+        let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
 
-        // create buffer
+        // create vertex buffer
         let vertex_data = [
             // bottom-left
             vertex(Vec2::ZERO, Vec2::new(self.src.left(), self.src.bottom())),
@@ -152,12 +200,54 @@ impl<'a> Drawable for Sprite<'a> {
             // top-right
             vertex(Vec2::new(x, 1.), Vec2::new(self.src.right(), self.src.top())),
             // top-left
-            vertex(Vec2::Y, Vec2::new(self.src.left(), self.src.top())),
+            vertex(Vec2::new(0., 1.), Vec2::new(self.src.left(), self.src.top())),
         ];
-        let vertex_buf = renderer.target.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let vertex_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertex_data),
             usage: BufferUsages::VERTEX,
+        });
+
+        // create index buffer
+        let index_data: [u16; 6] = [0, 1, 2, 2, 3, 0];
+        let index_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&index_data),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        // create transform matrix
+        let mx = Mat3::from(self.transform * renderer.sprite.clip);
+        let mx = Mat4::from_mat3(mx);
+        let mx_ref: &[f32; 16] = mx.as_ref();
+        let uniform_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("transform uniform"),
+            contents: bytemuck::cast_slice(mx_ref),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let texture_view = self.texture.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("texture"),
+            ..Default::default()
+        });
+
+        let bind_group = renderer.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &renderer.sprite.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&renderer.sprite.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+            ],
+            label: None,
         });
 
         let mut rpass = renderer.encoder.begin_render_pass(&RenderPassDescriptor {
@@ -174,10 +264,12 @@ impl<'a> Drawable for Sprite<'a> {
         });
         rpass.push_debug_group("Prepare data for draw.");
         rpass.set_pipeline(&renderer.cx.sprite.pipeline);
+        rpass.set_bind_group(0, &bind_group, &[]);
+        rpass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint16);
         rpass.set_vertex_buffer(0, vertex_buf.slice(..));
         rpass.pop_debug_group();
         rpass.insert_debug_marker("Draw!");
-        rpass.draw(0..4, 0..1);
+        rpass.draw_indexed(0..6, 0, 0..1);
     }
 }
 
