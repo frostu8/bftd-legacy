@@ -12,7 +12,7 @@ use pollster::FutureExt as _;
 use wgpu::{
     Adapter, Backends, Instance, Device, Queue, TextureUsages, PresentMode,
     SurfaceConfiguration, TextureDescriptor, Extent3d, TextureFormat,
-    TextureDimension, CommandEncoder, TextureView, util::DeviceExt,
+    TextureDimension, CommandEncoder, TextureView, util::DeviceExt, Surface,
 };
 use winit::window::Window;
 
@@ -21,25 +21,23 @@ use std::io::{Read, Seek, BufReader};
 
 use anyhow::Error;
 
-/// A ready-to-draw surface.
-///
-/// Cheaply cloneable.
-pub struct Surface {
+/// A graphics context.
+pub struct Context {
     adapter: Adapter,
     device: Device,
     queue: Queue,
-    surface: wgpu::Surface,
+    surface: Surface,
     surface_config: SurfaceConfiguration,
 
     sprite: sprite::Layout,
 }
 
-impl Surface {
+impl Context {
     /// Creates and initializes a `Surface`.
     ///
     /// **WARNING!** This is not meant to be called lightly. This will block
     /// while setting up and compiling shaders, which may take a while.
-    pub fn new(window: &Window) -> Result<Surface, Error> {
+    pub fn new(window: &Window) -> Result<Context, Error> {
         let size = window.inner_size();
 
         // create new instance
@@ -89,7 +87,7 @@ impl Surface {
 
         surface.configure(&device, &surface_config);
 
-        Ok(Surface {
+        Ok(Context {
             // build the default render layouts
             sprite: sprite::Layout::new(&device, &surface_config),
             // finalize
@@ -189,22 +187,22 @@ impl Surface {
 
 /// A single frame to draw to.
 pub struct Renderer<'a> {
-    cx: &'a mut Surface,
+    cx: &'a mut Context,
 
     view: TextureView,
     encoder: &'a mut CommandEncoder,
 }
 
 impl<'a> Deref for Renderer<'a> {
-    type Target = Surface;
+    type Target = Context;
 
-    fn deref(&self) -> &Surface {
+    fn deref(&self) -> &Context {
         self.cx
     }
 }
 
 impl<'a> DerefMut for Renderer<'a> {
-    fn deref_mut(&mut self) -> &mut Surface {
+    fn deref_mut(&mut self) -> &mut Context {
         self.cx
     }
 }

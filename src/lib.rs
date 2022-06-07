@@ -6,7 +6,8 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
-pub mod assets;
+pub mod render;
+/*pub mod assets;
 pub mod battle;
 pub mod fsm;
 pub mod input;
@@ -138,4 +139,5 @@ impl<'a> DerefMut for Context<'a> {
         &mut self.ggez
     }
 }
+*/
 

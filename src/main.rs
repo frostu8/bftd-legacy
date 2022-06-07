@@ -7,7 +7,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use bftd::render::{Drawable, Surface, Sprite};
+use bftd::render::{Drawable, Context, Sprite};
 
 pub fn main() -> Result<(), Error> {
     env_logger::init();
@@ -18,9 +18,9 @@ pub fn main() -> Result<(), Error> {
         .build(&event_loop)
         .unwrap();
 
-    let mut gfx_surface = Surface::new(&window)?;
+    let mut cx = Context::new(&window)?;
 
-    let tex = gfx_surface.load_texture(std::fs::File::open("assets/img/grand_dad/idle.png").unwrap()).unwrap();
+    let tex = cx.load_texture(std::fs::File::open("assets/img/grand_dad/idle.png").unwrap()).unwrap();
     let sprite = Sprite::new(tex);
 
     event_loop.run(move |event, _, control_flow| {
@@ -31,11 +31,11 @@ pub fn main() -> Result<(), Error> {
                 event: WindowEvent::Resized(size),
                 ..
             } => {
-                gfx_surface.resize(size.width, size.height);
+                cx.resize(size.width, size.height);
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
-                gfx_surface.begin(|cx| {
+                cx.begin(|cx| {
                     sprite.draw(cx);
                 });
             }
