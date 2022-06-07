@@ -7,6 +7,8 @@ use winit::{
     window::WindowBuilder,
 };
 
+use glam::f32::{Affine2, Vec2};
+
 use bftd::render::{Drawable, Context, Sprite};
 
 pub fn main() -> Result<(), Error> {
@@ -36,6 +38,7 @@ pub fn main() -> Result<(), Error> {
             }
             Event::RedrawRequested(_) => {
                 cx.begin(|cx| {
+                    cx.set_transform(Affine2::from_scale(Vec2::new(0.5, 0.5)));
                     sprite.draw(cx);
                 });
             }

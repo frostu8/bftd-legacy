@@ -17,8 +17,6 @@ pub struct Shader {
 
     square_indices: wgpu::Buffer,
     sampler: wgpu::Sampler,
-
-    clip: Affine2,
 }
 
 impl Shader {
@@ -137,14 +135,7 @@ impl Shader {
 
             sampler,
             square_indices,
-
-            clip: get_clip_transform(surface_config),
         }
-    }
-
-    /// Reconfigures the layout.
-    pub fn reconfigure(&mut self, surface_config: &wgpu::SurfaceConfiguration) {
-        self.clip = get_clip_transform(surface_config);
     }
 }
 
@@ -160,17 +151,6 @@ fn vertex(pos: Vec2, tc: Vec2) -> Vertex {
         _pos: [pos.x, pos.y],
         _tex_coord: [tc.x, tc.y],
     }
-}
-
-fn get_clip_transform(config: &wgpu::SurfaceConfiguration) -> Affine2 {
-    // Our clip matrix aligns (0, 0) to the bottom left corner of the screen.
-    // It also normalizes the dimensions of the graphics space so that it is
-    // 1.0 unit tall.
-    let norm_width = config.height as f32 / config.width as f32;
-    
-    Affine2::from_scale(Vec2::new(norm_width, 1.0))
-        * Affine2::from_scale(Vec2::new(2.0, 2.0))
-        * Affine2::from_scale(Vec2::new(1., -1.))
 }
 
 /// A sprite to be rendered to the screen.
@@ -242,7 +222,7 @@ impl From<Texture> for Sprite {
 impl Drawable for Sprite {
     fn draw(&self, renderer: &mut Renderer) {
         // recreate transform matrix
-        let mx = Mat3::from(self.transform * renderer.sprite.clip);
+        let mx = Mat3::from(renderer.clip * renderer.world * self.transform);
         let mx = Mat4::from_mat3(mx);
         let mx_ref: &[f32; 16] = mx.as_ref();
         let uniform_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

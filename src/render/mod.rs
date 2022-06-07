@@ -11,6 +11,7 @@ use pollster::FutureExt as _;
 
 use wgpu::util::DeviceExt;
 use winit::window::Window;
+use glam::f32::{Affine2, Vec2};
 
 use std::ops::Deref;
 use std::io::{Read, Seek, BufReader};
@@ -99,8 +100,6 @@ impl Context {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface.configure(&self.device, &self.surface_config);
-
-        self.sprite.reconfigure(&self.surface_config);
     }
 
     /// Begins a render frame, calls the closure and finalizes the frame.
@@ -108,6 +107,17 @@ impl Context {
     where
         F: FnOnce(&mut Renderer),
     {
+        // find clip transform
+        // Our clip matrix aligns (0, 0) to the bottom left corner of the screen.
+        // It also normalizes the dimensions of the graphics space so that it is
+        // 1.0 unit tall.
+        let norm_width = self.surface_config.height as f32 / self.surface_config.width as f32;
+        
+        let clip = Affine2::from_scale(Vec2::new(norm_width, 1.0))
+            * Affine2::from_scale(Vec2::new(2.0, 2.0))
+            * Affine2::from_scale(Vec2::new(1., -1.));
+
+        // create swapchain view
         let frame = self
             .surface
             .get_current_texture()
@@ -136,6 +146,10 @@ impl Context {
 
         f(&mut Renderer {
             cx: self,
+            
+            world: Affine2::IDENTITY,
+            clip,
+
             view,
             encoder: &mut encoder,
         });
@@ -185,8 +199,22 @@ impl Context {
 pub struct Renderer<'a> {
     cx: &'a Context,
 
+    // transformation matrices
+    world: Affine2,
+    clip: Affine2,
+
     view: wgpu::TextureView,
     encoder: &'a mut wgpu::CommandEncoder,
+}
+
+impl<'a> Renderer<'a> {
+    /// Sets the world transform.
+    ///
+    /// This is applied after clip transformations, but before the sprite
+    /// transformations. A good place to put camera transforms.
+    pub fn set_transform(&mut self, world: Affine2) {
+        self.world = world;
+    }
 }
 
 impl<'a> Deref for Renderer<'a> {
