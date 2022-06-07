@@ -106,7 +106,11 @@ impl Layout {
             fragment: Some(FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
-                targets: &[surface_config.format.into()],
+                targets: &[wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
             }),
             primitive: PrimitiveState::default(),
             depth_stencil: None,
