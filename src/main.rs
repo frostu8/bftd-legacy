@@ -23,7 +23,9 @@ pub fn main() -> Result<(), Error> {
     let mut cx = Context::new(&window)?;
 
     let tex = cx.load_texture(std::fs::File::open("assets/img/grand_dad/idle.png").unwrap()).unwrap();
-    let sprite: Sprite = tex.into();
+    let mut sprite: Sprite = tex.into();
+    sprite.set_src(bftd_lib::Rect::new(0.25, 0., 0.75, 1.));
+    sprite.set_transform(Affine2::from_translation(Vec2::new(0., -0.5)));
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

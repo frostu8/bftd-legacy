@@ -6,16 +6,11 @@ use wgpu::util::DeviceExt;
 use glam::f32::{Affine2, Mat3, Mat4, Vec2};
 use bftd_lib::Rect;
 
-use std::mem;
-
-use bytemuck::{Pod, Zeroable};
-
 /// Sprite shader.
 pub struct Shader {
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
 
-    square_indices: wgpu::Buffer,
     sampler: wgpu::Sampler,
 }
 
@@ -25,8 +20,6 @@ impl Shader {
         device: &wgpu::Device,
         surface_config: &wgpu::SurfaceConfiguration,
     ) -> Shader {
-        let vertex_size = mem::size_of::<Vertex>();
-
         let shader = device.create_shader_module(&wgpu::include_wgsl!("sprite.wgsl"));
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -34,22 +27,12 @@ impl Shader {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float {
@@ -59,7 +42,27 @@ impl Shader {
                         multisampled: false,
                     },
                     count: None,
-                }
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
             ],
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -68,30 +71,13 @@ impl Shader {
             push_constant_ranges: &[],
         });
 
-        let vertex_buffer_layout = [wgpu::VertexBufferLayout {
-            array_stride: vertex_size as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: 2 * 4,
-                    shader_location: 1,
-                },
-            ],
-        }];
-
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &vertex_buffer_layout,
+                buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -121,91 +107,52 @@ impl Shader {
             ..Default::default()
         });
 
-        // square_indices
-        let square_indices_data: [u16; 6] = [0, 1, 2, 2, 3, 0];
-        let square_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&square_indices_data),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
         Shader {
             bind_group_layout,
             pipeline,
 
             sampler,
-            square_indices,
         }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-#[repr(C)]
-struct Vertex {
-    _pos: [f32; 2],
-    _tex_coord: [f32; 2],
-}
-
-fn vertex(pos: Vec2, tc: Vec2) -> Vertex {
-    Vertex {
-        _pos: [pos.x, pos.y],
-        _tex_coord: [tc.x, tc.y],
     }
 }
 
 /// A sprite to be rendered to the screen.
 pub struct Sprite {
-    pub texture: Texture,
-    pub src: Rect,
-    pub transform: Affine2,
-
-    vertices: wgpu::Buffer,
+    texture: Texture,
+    src: Rect,
+    transform: Affine2,
 }
 
 impl Sprite {
-    const MESH_SIZE: usize = mem::size_of::<[Vertex; 4]>();
-
     /// Creates a new sprite, using the whole bounds of the texture as the src.
-    fn new(device: &wgpu::Device, texture: Texture) -> Sprite {
+    pub fn new(texture: Texture) -> Sprite {
         let sprite = Sprite {
             texture,
             src: Rect { p1: Vec2::ZERO, p2: Vec2::ONE },
             transform: Default::default(),
-
-            vertices: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("sprite mesh"),
-                size: Self::MESH_SIZE as wgpu::BufferAddress,
-                usage: wgpu::BufferUsages::VERTEX,
-                mapped_at_creation: true,
-            }),
         };
-
-        // rebuild meshes
-        sprite.rebuild_mesh();
 
         sprite
     }
 
-    fn rebuild_mesh(&self) {
-        // get normalized width
-        let x = (self.src.width() * self.texture.width() as f32)
-            / (self.src.height() * self.texture.height() as f32);
-        let half_x = x / 2.;
+    /// The source rectangle of the sprite.
+    pub fn src(&self) -> Rect {
+        self.src.clone()
+    }
 
-        // create vertex data
-        let vertex_data = [
-            // bottom-left
-            vertex(Vec2::new(-half_x, -0.5), Vec2::new(self.src.left(), self.src.bottom())),
-            // bottom-right
-            vertex(Vec2::new(half_x, -0.5), Vec2::new(self.src.right(), self.src.bottom())),
-            // top-right
-            vertex(Vec2::new(half_x, 0.5), Vec2::new(self.src.right(), self.src.top())),
-            // top-left
-            vertex(Vec2::new(-half_x, 0.5), Vec2::new(self.src.left(), self.src.top())),
-        ];
-        self.vertices.slice(..).get_mapped_range_mut()[..Self::MESH_SIZE]
-            .copy_from_slice(bytemuck::cast_slice(&vertex_data));
-        self.vertices.unmap();
+    /// Sets the source rectangle of the sprite.
+    pub fn set_src(&mut self, src: Rect) {
+        self.src = src;
+    }
+
+    /// The transformation of the sprite.
+    pub fn transform(&self) -> Affine2 {
+        self.transform
+    }
+
+    /// Sets the transformation of the sprite.
+    pub fn set_transform(&mut self, transform: Affine2) {
+        self.transform = transform;
     }
 }
 
@@ -213,21 +160,36 @@ impl Sprite {
 /// texture.
 impl From<Texture> for Sprite {
     fn from(texture: Texture) -> Sprite {
-        let device = texture.device.clone();
-
-        Sprite::new(&device, texture)
+        Sprite::new(texture)
     }
 }
 
 impl Drawable for Sprite {
     fn draw(&self, renderer: &mut Renderer) {
+        // normalize width
+        let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
+
         // recreate transform matrix
-        let mx = Mat3::from(renderer.clip * renderer.world * self.transform);
-        let mx = Mat4::from_mat3(mx);
-        let mx_ref: &[f32; 16] = mx.as_ref();
-        let uniform_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let transform = Affine2::from_scale(Vec2::new(x, 1.0))
+            * self.transform
+            * renderer.world
+            * renderer.clip;
+        let transform = Mat4::from_mat3(Mat3::from(transform));
+        let transform_ref: &[f32; 16] = transform.as_ref();
+        let transform = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("transform uniform"),
-            contents: bytemuck::cast_slice(mx_ref),
+            contents: bytemuck::cast_slice(transform_ref),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // do the same for the tex coord transform
+        let tex_transform = Affine2::from_scale(Vec2::new(self.src.width(), self.src.height()))
+            * Affine2::from_translation(Vec2::new(self.src.left(), self.src.bottom()));
+        let tex_transform = Mat4::from_mat3(Mat3::from(tex_transform));
+        let tex_transform_ref: &[f32; 16] = tex_transform.as_ref();
+        let tex_transform = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("tex transform uniform"),
+            contents: bytemuck::cast_slice(tex_transform_ref),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -241,15 +203,19 @@ impl Drawable for Sprite {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: uniform_buf.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
                     resource: wgpu::BindingResource::Sampler(&renderer.sprite.sampler),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: transform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: tex_transform.as_entire_binding(),
                 },
             ],
             label: None,
@@ -267,14 +233,9 @@ impl Drawable for Sprite {
             }],
             depth_stencil_attachment: None,
         });
-        rpass.push_debug_group("Prepare data for draw.");
         rpass.set_pipeline(&renderer.cx.sprite.pipeline);
         rpass.set_bind_group(0, &bind_group, &[]);
-        rpass.set_index_buffer(renderer.cx.sprite.square_indices.slice(..), wgpu::IndexFormat::Uint16);
-        rpass.set_vertex_buffer(0, self.vertices.slice(..));
-        rpass.pop_debug_group();
-        rpass.insert_debug_marker("Draw!");
-        rpass.draw_indexed(0..6, 0, 0..1);
+        rpass.draw(0..6, 0..1);
     }
 }
 
