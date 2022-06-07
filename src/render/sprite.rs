@@ -10,21 +10,23 @@ use std::mem;
 
 use bytemuck::{Pod, Zeroable};
 
-/// Sprite pipeline layout.
-pub struct Layout {
+/// Sprite shader.
+pub struct Shader {
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
 
+    square_indices: wgpu::Buffer,
     sampler: wgpu::Sampler,
+
     clip: Affine2,
 }
 
-impl Layout {
-    /// Creates a new `Layout`.
+impl Shader {
+    /// Creates a new `Shader`.
     pub fn new(
         device: &wgpu::Device,
         surface_config: &wgpu::SurfaceConfiguration,
-    ) -> Layout {
+    ) -> Shader {
         let vertex_size = mem::size_of::<Vertex>();
 
         let shader = device.create_shader_module(&wgpu::include_wgsl!("sprite.wgsl"));
@@ -108,7 +110,8 @@ impl Layout {
             multiview: None,
         });
 
-        // create default sampler
+        // create render pipeline defaults
+        // sampler
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: None,
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -120,11 +123,21 @@ impl Layout {
             ..Default::default()
         });
 
-        Layout {
+        // square_indices
+        let square_indices_data: [u16; 6] = [0, 1, 2, 2, 3, 0];
+        let square_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&square_indices_data),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        Shader {
             bind_group_layout,
             pipeline,
 
             sampler,
+            square_indices,
+
             clip: get_clip_transform(surface_config),
         }
     }
@@ -165,26 +178,41 @@ pub struct Sprite {
     pub texture: Texture,
     pub src: Rect,
     pub transform: Affine2,
+
+    vertices: wgpu::Buffer,
 }
 
 impl Sprite {
-    /// Creates a new sprite.
-    pub fn new(texture: Texture) -> Sprite {
-        Sprite {
+    const MESH_SIZE: usize = mem::size_of::<[Vertex; 4]>();
+
+    /// Creates a new sprite, using the whole bounds of the texture as the src.
+    fn new(device: &wgpu::Device, texture: Texture) -> Sprite {
+        let sprite = Sprite {
             texture,
             src: Rect { p1: Vec2::ZERO, p2: Vec2::ONE },
             transform: Default::default(),
-        }
-    }
-}
 
-impl Drawable for Sprite {
-    fn draw(&self, renderer: &mut Renderer) {
-        // normalize width
-        let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
+            vertices: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sprite mesh"),
+                size: Self::MESH_SIZE as wgpu::BufferAddress,
+                usage: wgpu::BufferUsages::VERTEX,
+                mapped_at_creation: true,
+            }),
+        };
+
+        // rebuild meshes
+        sprite.rebuild_mesh();
+
+        sprite
+    }
+
+    fn rebuild_mesh(&self) {
+        // get normalized width
+        let x = (self.src.width() * self.texture.width() as f32)
+            / (self.src.height() * self.texture.height() as f32);
         let half_x = x / 2.;
 
-        // create vertex buffer
+        // create vertex data
         let vertex_data = [
             // bottom-left
             vertex(Vec2::new(-half_x, -0.5), Vec2::new(self.src.left(), self.src.bottom())),
@@ -195,21 +223,25 @@ impl Drawable for Sprite {
             // top-left
             vertex(Vec2::new(-half_x, 0.5), Vec2::new(self.src.left(), self.src.top())),
         ];
-        let vertex_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertex_data),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        self.vertices.slice(..).get_mapped_range_mut()[..Self::MESH_SIZE]
+            .copy_from_slice(bytemuck::cast_slice(&vertex_data));
+        self.vertices.unmap();
+    }
+}
 
-        // create index buffer
-        let index_data: [u16; 6] = [0, 1, 2, 2, 3, 0];
-        let index_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&index_data),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+/// Converts a [`Texture`] to a sprite consisting of the entire bounds of the
+/// texture.
+impl From<Texture> for Sprite {
+    fn from(texture: Texture) -> Sprite {
+        let device = texture.device.clone();
 
-        // create transform matrix
+        Sprite::new(&device, texture)
+    }
+}
+
+impl Drawable for Sprite {
+    fn draw(&self, renderer: &mut Renderer) {
+        // recreate transform matrix
         let mx = Mat3::from(self.transform * renderer.sprite.clip);
         let mx = Mat4::from_mat3(mx);
         let mx_ref: &[f32; 16] = mx.as_ref();
@@ -258,8 +290,8 @@ impl Drawable for Sprite {
         rpass.push_debug_group("Prepare data for draw.");
         rpass.set_pipeline(&renderer.cx.sprite.pipeline);
         rpass.set_bind_group(0, &bind_group, &[]);
-        rpass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint16);
-        rpass.set_vertex_buffer(0, vertex_buf.slice(..));
+        rpass.set_index_buffer(renderer.cx.sprite.square_indices.slice(..), wgpu::IndexFormat::Uint16);
+        rpass.set_vertex_buffer(0, self.vertices.slice(..));
         rpass.pop_debug_group();
         rpass.insert_debug_marker("Draw!");
         rpass.draw_indexed(0..6, 0, 0..1);

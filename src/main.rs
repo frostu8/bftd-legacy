@@ -21,7 +21,7 @@ pub fn main() -> Result<(), Error> {
     let mut cx = Context::new(&window)?;
 
     let tex = cx.load_texture(std::fs::File::open("assets/img/grand_dad/idle.png").unwrap()).unwrap();
-    let sprite = Sprite::new(tex);
+    let sprite: Sprite = tex.into();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

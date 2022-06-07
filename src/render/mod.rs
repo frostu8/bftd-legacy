@@ -12,22 +12,20 @@ use pollster::FutureExt as _;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::io::{Read, Seek, BufReader};
+use std::sync::Arc;
 
 use anyhow::Error;
 
 /// A graphics context.
 pub struct Context {
-    // this warning is annoying me I swear we need the adapter
-    #[allow(dead_code)]
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
+    device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
 
-    sprite: sprite::Layout,
+    sprite: sprite::Shader,
 }
 
 impl Context {
@@ -87,10 +85,9 @@ impl Context {
 
         Ok(Context {
             // build the default render layouts
-            sprite: sprite::Layout::new(&device, &surface_config),
+            sprite: sprite::Shader::new(&device, &surface_config),
             // finalize
-            adapter,
-            device,
+            device: Arc::new(device),
             queue,
             surface,
             surface_config,
@@ -107,7 +104,7 @@ impl Context {
     }
 
     /// Begins a render frame, calls the closure and finalizes the frame.
-    pub fn begin<F>(&mut self, f: F)
+    pub fn begin<F>(&self, f: F)
     where
         F: FnOnce(&mut Renderer),
     {
@@ -177,15 +174,16 @@ impl Context {
         );
 
         Ok(Texture {
-            texture,
+            texture: Arc::new(texture),
             dims: (image.width(), image.height()),
+            device: self.device.clone(),
         })
     }
 }
 
 /// A single frame to draw to.
 pub struct Renderer<'a> {
-    cx: &'a mut Context,
+    cx: &'a Context,
 
     view: wgpu::TextureView,
     encoder: &'a mut wgpu::CommandEncoder,
@@ -199,16 +197,14 @@ impl<'a> Deref for Renderer<'a> {
     }
 }
 
-impl<'a> DerefMut for Renderer<'a> {
-    fn deref_mut(&mut self) -> &mut Context {
-        self.cx
-    }
-}
-
 /// A texture.
+///
+/// Cheaply cloneable.
 pub struct Texture {
-    texture: wgpu::Texture,
+    texture: Arc<wgpu::Texture>,
     dims: (u32, u32),
+
+    device: Arc<wgpu::Device>,
 }
 
 impl Texture {
