@@ -162,10 +162,9 @@ fn get_clip_transform(config: &SurfaceConfiguration) -> Affine2 {
     // 1.0 unit tall.
     let norm_width = config.height as f32 / config.width as f32;
     
-    Affine2::from_scale(Vec2::new(1., -1.))
-        * Affine2::from_translation(-Vec2::new(0.0, 1.0))
-        * Affine2::from_scale(Vec2::new(norm_width, 1.0))
+    Affine2::from_scale(Vec2::new(norm_width, 1.0))
         * Affine2::from_scale(Vec2::new(2.0, 2.0))
+        * Affine2::from_scale(Vec2::new(1., -1.))
 }
 
 /// A sprite to be rendered to the screen.
@@ -190,17 +189,18 @@ impl Drawable for Sprite {
     fn draw(&self, renderer: &mut Renderer) {
         // normalize width
         let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
+        let half_x = x / 2.;
 
         // create vertex buffer
         let vertex_data = [
             // bottom-left
-            vertex(Vec2::ZERO, Vec2::new(self.src.left(), self.src.bottom())),
+            vertex(Vec2::new(-half_x, -0.5), Vec2::new(self.src.left(), self.src.bottom())),
             // bottom-right
-            vertex(Vec2::new(x, 0.), Vec2::new(self.src.right(), self.src.bottom())),
+            vertex(Vec2::new(half_x, -0.5), Vec2::new(self.src.right(), self.src.bottom())),
             // top-right
-            vertex(Vec2::new(x, 1.), Vec2::new(self.src.right(), self.src.top())),
+            vertex(Vec2::new(half_x, 0.5), Vec2::new(self.src.right(), self.src.top())),
             // top-left
-            vertex(Vec2::new(0., 1.), Vec2::new(self.src.left(), self.src.top())),
+            vertex(Vec2::new(-half_x, 0.5), Vec2::new(self.src.left(), self.src.top())),
         ];
         let vertex_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
