@@ -9,11 +9,7 @@ pub use sprite::Sprite;
 
 use pollster::FutureExt as _;
 
-use wgpu::{
-    Adapter, Backends, Instance, Device, Queue, TextureUsages, PresentMode,
-    SurfaceConfiguration, TextureDescriptor, Extent3d, TextureFormat,
-    TextureDimension, CommandEncoder, TextureView, util::DeviceExt, Surface,
-};
+use wgpu::util::DeviceExt;
 use winit::window::Window;
 
 use std::ops::{Deref, DerefMut};
@@ -23,11 +19,13 @@ use anyhow::Error;
 
 /// A graphics context.
 pub struct Context {
-    adapter: Adapter,
-    device: Device,
-    queue: Queue,
-    surface: Surface,
-    surface_config: SurfaceConfiguration,
+    // this warning is annoying me I swear we need the adapter
+    #[allow(dead_code)]
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface: wgpu::Surface,
+    surface_config: wgpu::SurfaceConfiguration,
 
     sprite: sprite::Layout,
 }
@@ -41,7 +39,7 @@ impl Context {
         let size = window.inner_size();
 
         // create new instance
-        let instance = Instance::new(Backends::all());
+        let instance = wgpu::Instance::new(wgpu::Backends::all());
 
         // SAFETY: This is unsafe because the window handle must be valid, if
         // you find a way to have an invalid winit::Window then you have bigger
@@ -77,12 +75,12 @@ impl Context {
         let swapchain_format = surface.get_preferred_format(&adapter).unwrap();
 
         // configure the surface
-        let surface_config = SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT,
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Mailbox,
         };
 
         surface.configure(&device, &surface_config);
@@ -161,19 +159,19 @@ impl Context {
 
         let texture = self.device.create_texture_with_data(
             &self.queue,
-            &TextureDescriptor {
+            &wgpu::TextureDescriptor {
                 label: None,
-                size: Extent3d {
+                size: wgpu::Extent3d {
                     width: image.width(),
                     height: image.height(),
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
                 sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: TextureFormat::Rgba8UnormSrgb,
-                usage: TextureUsages::TEXTURE_BINDING
-                    | TextureUsages::COPY_DST,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST,
             },
             image.as_raw(),
         );
@@ -189,8 +187,8 @@ impl Context {
 pub struct Renderer<'a> {
     cx: &'a mut Context,
 
-    view: TextureView,
-    encoder: &'a mut CommandEncoder,
+    view: wgpu::TextureView,
+    encoder: &'a mut wgpu::CommandEncoder,
 }
 
 impl<'a> Deref for Renderer<'a> {

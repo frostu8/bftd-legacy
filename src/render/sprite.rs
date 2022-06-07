@@ -2,16 +2,7 @@
 
 use super::{Texture, Drawable, Renderer};
 
-use wgpu::{
-    include_wgsl, PipelineLayoutDescriptor, RenderPipelineDescriptor,
-    VertexState, FragmentState, PrimitiveState, MultisampleState,
-    PipelineLayout, RenderPipeline, SurfaceConfiguration,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType,
-    BufferBindingType, BufferSize, BindGroupLayout, VertexBufferLayout,
-    BufferAddress, VertexAttribute, VertexStepMode, VertexFormat, util::DeviceExt,
-    BufferUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations,
-    LoadOp,
-};
+use wgpu::util::DeviceExt;
 use glam::f32::{Affine2, Mat3, Mat4, Vec2};
 use bftd_lib::Rect;
 
@@ -21,9 +12,8 @@ use bytemuck::{Pod, Zeroable};
 
 /// Sprite pipeline layout.
 pub struct Layout {
-    bind_group_layout: BindGroupLayout,
-    layout: PipelineLayout,
-    pipeline: RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    pipeline: wgpu::RenderPipeline,
 
     sampler: wgpu::Sampler,
     clip: Affine2,
@@ -37,31 +27,31 @@ impl Layout {
     ) -> Layout {
         let vertex_size = mem::size_of::<Vertex>();
 
-        let shader = device.create_shader_module(&include_wgsl!("sprite.wgsl"));
+        let shader = device.create_shader_module(&wgpu::include_wgsl!("sprite.wgsl"));
 
-        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sprite shader bind group layout"),
             entries: &[
-                BindGroupLayoutEntry {
+                wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::VERTEX,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: BufferSize::new(64),
+                        min_binding_size: wgpu::BufferSize::new(64),
                     },
                     count: None,
                 },
-                BindGroupLayoutEntry {
+                wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-                BindGroupLayoutEntry {
+                wgpu::BindGroupLayoutEntry {
                     binding: 2,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float {
                             filterable: true,
                         },
@@ -72,38 +62,38 @@ impl Layout {
                 }
             ],
         });
-        let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sprite shader layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
-        let vertex_buffer_layout = [VertexBufferLayout {
-            array_stride: vertex_size as BufferAddress,
-            step_mode: VertexStepMode::Vertex,
+        let vertex_buffer_layout = [wgpu::VertexBufferLayout {
+            array_stride: vertex_size as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                VertexAttribute {
-                    format: VertexFormat::Float32x2,
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 0,
                     shader_location: 0,
                 },
-                VertexAttribute {
-                    format: VertexFormat::Float32x2,
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 2 * 4,
                     shader_location: 1,
                 },
             ],
         }];
 
-        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),
-            vertex: VertexState {
+            vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
                 buffers: &vertex_buffer_layout,
             },
-            fragment: Some(FragmentState {
+            fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[wgpu::ColorTargetState {
@@ -112,9 +102,9 @@ impl Layout {
                     write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
-            primitive: PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
-            multisample: MultisampleState::default(),
+            multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
 
@@ -132,7 +122,6 @@ impl Layout {
 
         Layout {
             bind_group_layout,
-            layout,
             pipeline,
 
             sampler,
@@ -160,7 +149,7 @@ fn vertex(pos: Vec2, tc: Vec2) -> Vertex {
     }
 }
 
-fn get_clip_transform(config: &SurfaceConfiguration) -> Affine2 {
+fn get_clip_transform(config: &wgpu::SurfaceConfiguration) -> Affine2 {
     // Our clip matrix aligns (0, 0) to the bottom left corner of the screen.
     // It also normalizes the dimensions of the graphics space so that it is
     // 1.0 unit tall.
@@ -209,7 +198,7 @@ impl Drawable for Sprite {
         let vertex_buf = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertex_data),
-            usage: BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX,
         });
 
         // create index buffer
@@ -254,13 +243,13 @@ impl Drawable for Sprite {
             label: None,
         });
 
-        let mut rpass = renderer.encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut rpass = renderer.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
-            color_attachments: &[RenderPassColorAttachment {
+            color_attachments: &[wgpu::RenderPassColorAttachment {
                 view: &renderer.view,
                 resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Load,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
                     store: true,
                 },
             }],
