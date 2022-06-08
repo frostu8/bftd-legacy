@@ -183,10 +183,10 @@ impl Drawable for Sprite {
         let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
 
         // recreate transform matrix
-        let transform = Affine2::from_scale(Vec2::new(x, 1.0))
-            * self.transform
+        let transform = renderer.clip
             * renderer.world
-            * renderer.clip;
+            * self.transform
+            * Affine2::from_scale(Vec2::new(x, 1.0));
         let transform = Mat4::from_mat3(Mat3::from(transform));
         let transform_ref: &[f32; 16] = transform.as_ref();
         let transform = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

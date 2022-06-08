@@ -102,6 +102,11 @@ impl Arena {
 
     /// Draws the battle to a graphics context.
     pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
+        cx.set_transform(
+            Affine2::from_scale(Vec2::new(0.4, 0.4))
+            * Affine2::from_translation(Vec2::new(0.0, 0.25))
+        );
+
         self.p2.draw(cx)?;
         self.p1.draw(cx)
     }
