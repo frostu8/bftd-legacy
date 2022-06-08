@@ -2,12 +2,16 @@
 
 pub mod sampler;
 
+pub use sampler::{Handle, Sampler};
+
 use std::fmt::{self, Debug, Formatter};
 use std::sync::{Arc, RwLock};
 use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign, Not};
 
 use bytemuck::{Pod, Zeroable};
+
+use serde::{Serialize, Deserialize};
 
 /// A buffer for inputs. Not to be confused with an
 /// ["input buffer"](https://supersmashbros.fandom.com/wiki/Input_Buffering).
@@ -97,7 +101,7 @@ impl Debug for Inputs {
 /// Internally represented by [numpad notation][1].
 ///
 /// [1]: http://www.dustloop.com/wiki/index.php/Notation
-#[derive(Clone, Copy, PartialEq, Pod, Eq, Hash, Zeroable)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Pod, Eq, Serialize, Hash, Zeroable)]
 #[repr(transparent)]
 pub struct Direction(u8);
 
@@ -164,7 +168,7 @@ impl Default for Direction {
 }
 
 /// Button inputs.
-#[derive(Clone, Copy, PartialEq, Pod, Eq, Hash, Zeroable)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Pod, Eq, Serialize, Hash, Zeroable)]
 #[repr(transparent)]
 pub struct Buttons(u8);
 

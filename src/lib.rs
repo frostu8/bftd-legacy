@@ -6,166 +6,66 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
+pub mod render;
 pub mod assets;
 pub mod battle;
-pub mod fsm;
 pub mod input;
+pub mod timer;
 
-use ggez::event::{Axis, Button, EventHandler};
-use ggez::input::keyboard::{KeyCode, KeyMods};
-use ggez::input::gamepad::GamepadId;
-use ggez::graphics;
-
-use std::ops::{Deref, DerefMut};
-
-use battle::{LocalBattle, Arena, script::Engine};
-use input::sampler::{Input, Handle};
-use assets::Bundle;
-
-use bevy_tasks::TaskPool;
+use input::Handle;
+use render::Renderer;
 
 use anyhow::Error;
 
-/// The main game state.
+/// Global game context.
+pub struct Context {
+    /// The render context.
+    pub render: render::Context,
+    /// The scripting engine used to run scripts in-battle.
+    pub script: battle::script::Engine,
+    /// The input handler.
+    pub input: input::Sampler,
+    /// A frame limiter.
+    pub frame_limiter: timer::FrameLimiter,
+    /// A thread pool for I/O.
+    pub task_pool: bevy_tasks::TaskPool,
+}
+
+/// The game.
 pub struct Game {
-    core_bundle: Bundle,
-    script_engine: Engine,
-    input: Input,
-    battle: LocalBattle,
-    task_pool: TaskPool,
+    core_bundle: assets::Bundle,
+    battle: battle::LocalBattle,
 }
 
 impl Game {
-    /// Creates the main game state.
-    pub fn new(cx: &mut ggez::Context) -> Result<Game, Error> {
-        const ELEVATION: f32 = 100.0;
+    /// Creates a new game.
+    pub fn new(cx: &mut Context) -> Result<Game, Error> {
+        let mut core_bundle = assets::Bundle::new("assets/")?;
 
-        let script_engine = Engine::new();
-        let task_pool = TaskPool::new();
-        let mut core_bundle = Bundle::new("./assets/")?;
-        let mut input = Input::new(cx);
-        let mut cx = Context::new(cx, &script_engine, &mut input, &task_pool);
+        let gdfsm = core_bundle.load_character(cx, "/characters/grand_dad.ron")?;
+        let hhfsm = core_bundle.load_character(cx, "/characters/hh.ron")?;
 
-        let gdfsm = core_bundle.load_character(&mut cx, "/characters/grand_dad.ron").unwrap();
-        let hhfsm = core_bundle.load_character(&mut cx, "/characters/hh.ron").unwrap();
-
-        let rect = ggez::graphics::Rect {
-            x: -960.0,
-            y: -1080.0 + ELEVATION,
-            w: 1920.0,
-            h: 1080.0,
-        };
-        graphics::set_screen_coordinates(&mut cx, rect).unwrap();
+        let arena = battle::Arena::new(&cx.script, gdfsm, hhfsm)?;
 
         Ok(Game {
             core_bundle,
-            battle: LocalBattle::new(Arena::new(cx.script_engine, gdfsm, hhfsm).unwrap(), Handle::new(0), Handle::new(1)),
-            script_engine,
-            input,
-            task_pool: TaskPool::new(),
+            battle: battle::LocalBattle::new(arena, Handle::new(0), Handle::new(1)),
         })
     }
 
-    fn get_context<'a>(&'a mut self, cx: &'a mut ggez::Context) -> Context<'a> {
-        Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool)
-    }
-}
+    /// Updates the game state.
+    ///
+    /// This should be called as frequently as possible.
+    pub fn update(&mut self, cx: &mut Context) {
+        // update input
+        cx.input.poll();
 
-impl EventHandler for Game {
-    fn key_down_event(
-        &mut self,
-        ctx: &mut ggez::Context,
-        keycode: KeyCode,
-        _keymods: KeyMods,
-        repeat: bool
-    ) {
-        if keycode == KeyCode::Escape {
-            ggez::event::quit(ctx);
-            return;
-        }
-
-        if !repeat {
-            self.input.key_down(keycode);
-        }
+        self.battle.update(cx).unwrap();
     }
 
-    fn key_up_event(
-        &mut self,
-        _ctx: &mut ggez::Context,
-        keycode: KeyCode,
-        _keymods: KeyMods,
-    ) {
-        self.input.key_up(keycode);
-    }
-
-    fn gamepad_button_down_event(
-        &mut self,
-        _ctx: &mut ggez::Context,
-        btn: Button,
-        id: GamepadId
-    ) {
-        self.input.button_down(btn, id);
-    }
-
-    fn gamepad_axis_event(
-        &mut self,
-        _ctx: &mut ggez::Context,
-        axis: Axis,
-        value: f32,
-        id: GamepadId
-    ) {
-        self.input.axis(axis, value, id);
-    }
-
-    fn update(&mut self, cx: &mut ggez::Context) -> ggez::GameResult {
-        let mut cx = Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool);
-        self.battle.update(&mut cx).unwrap();
-
-        Ok(())
-    }
-
-    fn draw(&mut self, cx: &mut ggez::Context) -> ggez::GameResult {
-        graphics::clear(cx, [0.0, 0.0, 0.0, 1.0].into());
-
-        {
-            let mut cx = Context::new(cx, &self.script_engine, &mut self.input, &self.task_pool);
-            self.battle.draw(&mut cx).unwrap();
-        }
-
-        graphics::present(cx)
-    }
-}
-
-/// A game context.
-pub struct Context<'a> {
-    ggez: &'a mut ggez::Context,
-    script_engine: &'a Engine,
-    input: &'a mut Input,
-    task_pool: &'a TaskPool,
-}
-
-impl<'a> Context<'a> {
-    pub fn new(
-        ggez: &'a mut ggez::Context,
-        script_engine: &'a Engine,
-        input: &'a mut Input,
-        task_pool: &'a TaskPool,
-    ) -> Context<'a> {
-        Context { ggez, script_engine, input, task_pool }
-    }
-}
-
-impl<'a> Deref for Context<'a> {
-    type Target = ggez::Context;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ggez
-    }
-}
-
-impl<'a> DerefMut for Context<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.ggez
+    /// Draws the game state to the screen.
+    pub fn draw(&mut self, cx: &mut Renderer) {
+        self.battle.draw(cx).unwrap();
     }
 }
 

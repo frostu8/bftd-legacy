@@ -4,16 +4,15 @@ use bftd_lib::Metadata;
 
 use anyhow::Error;
 
-use ggez::graphics::Image;
-
-use crate::fsm::{Key, Fsm, State, Frame, Sprite};
+use crate::render::Texture;
+use crate::battle::fsm::{Key, Fsm, State, Frame};
 use crate::Context;
 
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::any::Any;
 
 /// An asset's type.
@@ -81,7 +80,7 @@ impl Bundle {
                     let script = self.load::<String>(cx, path)?;
 
                     // compile script
-                    let ast = cx.script_engine.compile(script.as_str())?;
+                    let ast = cx.script.compile(script.as_str())?;
 
                     Some(ast)
                 },
@@ -93,13 +92,11 @@ impl Bundle {
                 // load sprite if necessary
                 let sprite = match &frame.sprite {
                     Some(sprite) => {
-                        let texture = self.load::<Image>(cx, &sprite.texture)?;
+                        use std::ops::Deref as _;
+                        let texture = self.load::<Texture>(cx, &sprite.texture)?;
 
-                        Some(Sprite {
-                            texture,
-                            src: sprite.src.clone(),
-                            transform: sprite.transform,
-                        })
+                        // FIXME: possibly bad if we avoid asset handling Arcs
+                        Some(texture.deref().clone().into())
                     },
                     None => None,
                 };
@@ -128,7 +125,7 @@ pub trait Loadable: Sized {
     /// Loads an asset from a stream.
     fn load<T>(cx: &mut Context, stream: T) -> Result<Self, Error>
     where
-        T: Read;
+        T: Read + Seek;
 }
 
 impl Loadable for String {
@@ -144,16 +141,12 @@ impl Loadable for String {
     }
 }
 
-impl Loadable for Image {
-    fn load<R>(cx: &mut Context, mut stream: R) -> Result<Self, Error>
+impl Loadable for Texture {
+    fn load<R>(cx: &mut Context, stream: R) -> Result<Self, Error>
     where
-        R: Read,
+        R: Read + Seek,
     {
-        let mut buf = Vec::new();
-
-        stream.read_to_end(&mut buf)?;
-
-        Image::from_bytes(cx.ggez, &buf).map_err(From::from)
+        cx.render.load_texture(stream)
     }
 }
 

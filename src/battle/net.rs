@@ -4,6 +4,7 @@ use super::{Arena, FRAMES_PER_SECOND, State};
 use super::script::Scope;
 
 use crate::input::{Buffer as InputBuffer, sampler::Handle as InputHandle, Inputs};
+use crate::render::Renderer;
 use crate::Context;
 
 use backroll::{P2PSession, P2PSessionBuilder, PlayerHandle, command::{Command, Commands}};
@@ -64,7 +65,7 @@ impl NetBattle {
     pub fn update(&mut self, cx: &mut Context) -> Result<(), Error> {
         self.handle_commands(cx, self.session.poll())?;
 
-        while ggez::timer::check_update_time(cx, FRAMES_PER_SECOND) {
+        while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
             // sample input from the local player(s)
             for player in self.players.iter() {
                 if let Some(input) = player.sample_local(cx) {
@@ -80,7 +81,7 @@ impl NetBattle {
     }
     
     /// Draws the battle to a graphics context.
-    pub fn draw(&mut self, cx: &mut Context) -> Result<(), Error> {
+    pub fn draw(&mut self, cx: &mut Renderer) -> Result<(), Error> {
         self.arena.draw(cx)
     }
 
@@ -98,7 +99,7 @@ impl NetBattle {
                     }
 
                     self.arena.update(
-                        cx.script_engine,
+                        &cx.script,
                         &self.players[0].inputs,
                         &self.players[1].inputs,
                     )?;

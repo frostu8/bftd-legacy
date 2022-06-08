@@ -4,13 +4,13 @@ use bftd_lib::Rect;
 
 use glam::f32::{Affine2, Mat4, Vec2};
 
-use crate::assets::Asset;
-
 use std::sync::Arc;
 use std::ops::Deref;
 use std::collections::HashMap;
 
+use crate::assets::Asset;
 use crate::battle::script::AST;
+use crate::render::Sprite;
 
 use anyhow::Error;
 
@@ -107,73 +107,5 @@ impl State {
 pub struct Frame {
     /// The sprite to display for this frame.
     pub sprite: Option<Sprite>,
-}
-
-/// A [`Frame`]'s sprite.
-#[derive(Clone, Debug)]
-pub struct Sprite {
-    /// The in-GPU memory of the source texture.
-    pub texture: Asset<ggez::graphics::Image>,
-    /// The source rectangle of the image.
-    pub src: Rect,
-    /// The transformations to be applied to the image, relative to the origin.
-    pub transform: Affine2,
-}
-
-impl Sprite {
-    /// Creates a new sprite from a raw GPU texture.
-    pub fn new(texture: ggez::graphics::Image) -> Sprite {
-        Sprite {
-            src: Rect::new_wh(0., 0., 1., 1.),
-            texture: Asset::new(texture),
-            transform: Affine2::IDENTITY,
-        }
-    }
-
-    fn offset(&self) -> Affine2 {
-        Affine2::from_translation(
-            -Vec2::new(self.width() as f32 / 2., self.height() as f32)
-        )
-    }
-
-    /// The width of the untransformed sprite.
-    pub fn width(&self) -> f32 {
-        self.src.width() * self.texture.width() as f32
-    }
-
-    /// The height of the untransformed sprite.
-    pub fn height(&self) -> f32 {
-        self.src.height() * self.texture.height() as f32
-    }
-
-    /// Draws the sprite to a drawing context.
-    pub fn draw(&self, cx: &mut ggez::Context, origin: Affine2) -> Result<(), Error> {
-        // get transform
-        let transform = origin * self.transform * self.offset();
-
-        let params = ggez::graphics::DrawParam {
-            /*src: ggez::graphics::Rect {
-                x: self.src.left(), y: self.src.top(),
-                w: self.src.width(), h: self.src.height(),
-            },*/
-            trans: to_ggez_transform(transform),
-            ..Default::default()
-        };
-
-        // draw sprite to screen
-        ggez::graphics::draw(cx, self.texture.as_ref(), params)
-            .map_err(Into::into)
-    }
-}
-
-fn to_ggez_transform(affine: Affine2) -> ggez::graphics::Transform {
-    let mat = Mat4::from_cols(
-        (affine.matrix2.col(0), 0.0, 0.0).into(),
-        (affine.matrix2.col(1), 0.0, 0.0).into(),
-        (0.0, 0.0, 1.0, 0.0).into(),
-        (affine.translation, 0.0, 1.0).into(),
-    );
-
-    ggez::graphics::Transform::Matrix(mat.into())
 }
 

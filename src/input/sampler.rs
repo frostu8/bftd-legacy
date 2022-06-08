@@ -1,26 +1,31 @@
 //! Input sampling and management.
 
+use winit::event::ScanCode;
+
+use gilrs::{ev::{Axis, Button}, Gilrs, GamepadId, EventType};
+
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 
-use ggez::input::keyboard::KeyCode;
-use ggez::input::gamepad::GamepadId;
-use ggez::event::{Axis, Button};
-
 use crate::input::{Direction, Inputs, Buttons};
 
-/// The input controller.
+use uuid::Uuid;
+
+use serde::{Serialize, Deserialize};
+
+/// The global input sampler.
 ///
-/// Processes input events from the OS's push event stream and turns it into a
-/// pullable stream of platform-independent inputs.
-#[derive(Default)]
-pub struct Input {
-    samplers: Vec<Option<Sampler>>,
+/// Processes inputs from the OS and converts them to useful, platform-
+/// independent events. [`gilrs`] already does an amazing job at this, but we
+/// need to consider the keyboard as an input device.
+pub struct Sampler {
+    gilrs: Gilrs,
+    bindings: Bindings,
+    devices: Vec<Option<Device>>,
 }
 
 /// A handle to a single input device.
 #[derive(Clone, Copy)]
-// TODO: this should be called "InputHandle"
 pub struct Handle(usize);
 
 impl Handle {
@@ -31,26 +36,34 @@ impl Handle {
     }
 }
 
-impl Input {
+impl Sampler {
     /// Creates a new input controller from raw input systems.
-    pub fn new(cx: &mut ggez::Context) -> Input {
-        let mut samplers = Vec::new();
+    pub fn new(mut bindings: Bindings) -> Sampler {
+        let gilrs = Gilrs::new().unwrap();
+        let mut devices = Vec::new();
 
-        for (id, _) in cx.gamepad_context.gamepads() {
-            samplers.push(Sampler::Gamepad(Gamepad::new(id, GamepadMapping::default())));
+        // add keyboards
+        for bindings in bindings.keyboards.iter() {
+            devices.push(Some(Device::Keyboard(Keyboard::new(bindings.clone()))));
         }
 
-        // add keyboard mappings
-        samplers.push(Sampler::Keyboard(Keyboard::new(KeyboardMapping::default())));
+        // iterate over gamepads
+        for (id, gamepad) in gilrs.gamepads() {
+            let uuid = Uuid::from_bytes(gamepad.uuid());
+            let bindings = bindings.get(&uuid).clone();
+            devices.push(Some(Device::Gamepad(Gamepad::new(id, uuid, bindings))));
+        }
 
-        Input {
-            samplers: samplers.into_iter().map(|s| Some(s)).collect(),
+        Sampler {
+            gilrs,
+            bindings,
+            devices,
         }
     }
 
     /// Iterates over the input devices.
     pub fn iter(&self) -> impl Iterator<Item = Handle> {
-        self.samplers
+        self.devices
             .iter()
             .enumerate()
             .filter(|(_, s)| s.is_some())
@@ -61,56 +74,102 @@ impl Input {
 
     /// Samples a set of inputs.
     ///
-    /// Returns `None` if the handle is now invalid.
+    /// Returns `None` if the handle is invalid, possibly from unplugging a
+    /// controller.
     pub fn sample(&mut self, id: Handle) -> Option<Inputs> {
-        self.samplers
+        self.devices
             .get_mut(id.0)
             .map(|s| s.as_mut().map(|s| s.sample()))
             .flatten()
     }
+    
+    /// Polls lower level input constructs.
+    pub fn poll(&mut self) {
+        while let Some(ev) = self.gilrs.next_event() {
+            match ev.event {
+                EventType::ButtonPressed(btn, _) => self.process_button_down(ev.id, btn),
+                EventType::AxisChanged(axis, value, _) => self.process_axis(ev.id, axis, value),
+                EventType::Connected => {
+                    let gamepad = self.gilrs.gamepad(ev.id);
+                    let uuid = Uuid::from_bytes(gamepad.uuid());
+                    let bindings = self.bindings.get(&uuid);
+                    let device = Device::Gamepad(Gamepad::new(ev.id, uuid, bindings));
 
-    /// Processes a key down event.
-    pub fn key_down(&mut self, keycode: KeyCode) {
-        for s in self.samplers_mut() {
-            match s {
-                Sampler::Keyboard(k) => k.key_down(keycode),
+                    // find spot to put device
+                    for d in self.devices.iter_mut() {
+                        if let None = d {
+                            *d = Some(device);
+                            return;
+                        }
+                    }
+
+                    // add new device to end if no spot was found
+                    self.devices.push(Some(device));
+                },
+                EventType::Disconnected => {
+                    for device in self.devices.iter_mut() {
+                        if let Some(Device::Gamepad(gamepad)) = device {
+                            if gamepad.id == ev.id {
+                                *device = None;
+                            }
+                        }
+                    }
+                },
                 _ => (),
             }
+        }
+    }
+
+    /// Processes a key down event.
+    pub fn process_key_down(&mut self, keycode: ScanCode) {
+        for k in self.keyboards_mut() {
+            k.key_down(keycode);
         }
     }
 
     /// Processes a key up event.
-    pub fn key_up(&mut self, keycode: KeyCode) {
-        for s in self.samplers_mut() {
-            match s {
-                Sampler::Keyboard(k) => k.key_up(keycode),
-                _ => (),
-            }
+    pub fn process_key_up(&mut self, keycode: ScanCode) {
+        for k in self.keyboards_mut() {
+            k.key_up(keycode);
         }
     }
 
     /// Processes a gamepad button event.
-    pub fn button_down(&mut self, btn: Button, id: GamepadId) {
-        for s in self.samplers_mut() {
-            match s {
-                Sampler::Gamepad(g) if g.id == id => g.button_down(btn),
-                _ => (),
-            }
+    ///
+    /// You shouldn't need to call this yourself. Call [`Sampler::poll`]
+    /// instead.
+    pub fn process_button_down(&mut self, id: GamepadId, btn: Button) {
+        for g in self.gamepads_mut().filter(|g| g.id == id) {
+            g.button_down(btn);
         }
     }
 
     /// Processes a gamepad axis event.
-    pub fn axis(&mut self, axis: Axis, value: f32, id: GamepadId) {
-        for s in self.samplers_mut() {
-            match s {
-                Sampler::Gamepad(g) if g.id == id => g.axis(axis, value),
-                _ => (),
-            }
+    ///
+    /// You shouldn't need to call this yourself. Call [`Sampler::poll`]
+    /// instead.
+    pub fn process_axis(&mut self, id: GamepadId, axis: Axis, value: f32) {
+        for g in self.gamepads_mut().filter(|g| g.id == id) {
+            g.axis(axis, value);
         }
     }
 
-    fn samplers_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Sampler> {
-        self.samplers.iter_mut().filter_map(|s| s.as_mut())
+    fn gamepads_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Gamepad> {
+        self.devices
+            .iter_mut()
+            .filter_map(|s| s.as_mut().and_then(|s| match s {
+                Device::Gamepad(k) => Some(k),
+                _ => None,
+            }))
+    }
+
+    fn keyboards_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Keyboard> {
+        self.devices
+            .iter_mut()
+            .filter_map(|s| s.as_mut().and_then(|s| match s {
+                Device::Keyboard(k) => Some(k),
+                _ => None,
+            }))
     }
 }
 
@@ -120,19 +179,47 @@ impl Debug for Handle {
     }
 }
 
-/// A sampler.
+/// Binding configuration.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Bindings {
+    keyboards: Vec<KeyboardBinding>,
+    gamepads: HashMap<Uuid, GamepadBinding>,
+}
+
+impl Bindings {
+    /// Gets a gamepad mapping, or inserts the default mapping into the config.
+    pub fn get(&mut self, uuid: &Uuid) -> GamepadBinding {
+        if let Some(bindings) = self.gamepads.get(uuid) {
+            bindings.clone()
+        } else {
+            // insert default bindings
+            self.gamepads.insert(uuid.clone(), Default::default());
+            self.gamepads.get(uuid).unwrap().clone()
+        }
+    }
+}
+
+impl Default for Bindings {
+    fn default() -> Bindings {
+        Bindings {
+            keyboards: vec![KeyboardBinding::default()],
+            gamepads: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
-pub enum Sampler {
+enum Device {
     Keyboard(Keyboard),
     Gamepad(Gamepad),
 }
 
-impl Sampler {
+impl Device {
     /// Samples a set of inputs.
     pub fn sample(&mut self) -> Inputs {
         match self {
-            Sampler::Keyboard(k) => k.sample(),
-            Sampler::Gamepad(g) => g.sample(),
+            Device::Keyboard(k) => k.sample(),
+            Device::Gamepad(g) => g.sample(),
         }
     }
 }
@@ -151,7 +238,7 @@ const DIRECTION_DOWN: u8 = 0b0010;
 pub struct Keyboard {
     direction: u8,
     buttons: Buttons,
-    mapping: KeyboardMapping,
+    mapping: KeyboardBinding,
 }
 
 // TODO: this implementation is extremely quick and dirty, find a more elegant
@@ -163,7 +250,7 @@ pub struct Keyboard {
 // TODO: also fix input tunneling
 impl Keyboard {
     /// Creates a new `Keyboard` sampler.
-    pub fn new(mapping: KeyboardMapping) -> Keyboard {
+    pub fn new(mapping: KeyboardBinding) -> Keyboard {
         Keyboard {
             mapping,
             direction: 0,
@@ -172,7 +259,7 @@ impl Keyboard {
     }
 
     /// Processes a key down event.
-    pub fn key_down(&mut self, key: KeyCode) {
+    pub fn key_down(&mut self, key: ScanCode) {
         if let Some(&direction) = self.mapping.direction_map.get(&key) {
             self.direction |= direction;
         }
@@ -183,7 +270,7 @@ impl Keyboard {
     }
 
     /// Processes a key up event.
-    pub fn key_up(&mut self, key: KeyCode) {
+    pub fn key_up(&mut self, key: ScanCode) {
         if let Some(&direction) = self.mapping.direction_map.get(&key) {
             self.direction &= !direction;
         }
@@ -217,29 +304,29 @@ impl Keyboard {
 }
 
 /// A mapping for keyboard inputs.
-#[derive(Debug)]
-pub struct KeyboardMapping {
-    direction_map: HashMap<KeyCode, u8>,
-    button_map: HashMap<KeyCode, Buttons>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KeyboardBinding {
+    direction_map: HashMap<ScanCode, u8>,
+    button_map: HashMap<ScanCode, Buttons>,
 }
 
-impl Default for KeyboardMapping {
-    fn default() -> KeyboardMapping {
+impl Default for KeyboardBinding {
+    fn default() -> KeyboardBinding {
         let mut direction_map = HashMap::new();
 
-        direction_map.insert(KeyCode::W, DIRECTION_UP);
-        direction_map.insert(KeyCode::S, DIRECTION_DOWN);
-        direction_map.insert(KeyCode::A, DIRECTION_LEFT);
-        direction_map.insert(KeyCode::D, DIRECTION_RIGHT);
+        direction_map.insert(0x11, DIRECTION_UP);
+        direction_map.insert(0x1F, DIRECTION_DOWN);
+        direction_map.insert(0x1E, DIRECTION_LEFT);
+        direction_map.insert(0x20, DIRECTION_RIGHT);
 
         let mut button_map = HashMap::new();
 
-        button_map.insert(KeyCode::U, Buttons::P);
-        button_map.insert(KeyCode::I, Buttons::K);
-        button_map.insert(KeyCode::O, Buttons::S);
-        button_map.insert(KeyCode::P, Buttons::H);
+        button_map.insert(0x16, Buttons::P);
+        button_map.insert(0x17, Buttons::K);
+        button_map.insert(0x18, Buttons::S);
+        button_map.insert(0x19, Buttons::H);
 
-        KeyboardMapping { direction_map, button_map }
+        KeyboardBinding { direction_map, button_map }
     }
 }
 
@@ -250,17 +337,21 @@ pub struct Gamepad {
     axis_x: f32,
     axis_y: f32,
     buttons: Buttons,
-    mapping: GamepadMapping,
+
+    uuid: Uuid,
+    mapping: GamepadBinding,
 }
 
 impl Gamepad {
     /// Creates a new `Gamepad` sampler.
-    pub fn new(id: GamepadId, mapping: GamepadMapping) -> Gamepad {
+    pub fn new(id: GamepadId, uuid: Uuid, mapping: GamepadBinding) -> Gamepad {
         Gamepad {
             id,
             axis_x: 0.,
             axis_y: 0.,
             buttons: Buttons::default(),
+
+            uuid,
             mapping,
         }
     }
@@ -315,14 +406,14 @@ impl Gamepad {
 }
 
 /// Gamepad mapping.
-#[derive(Debug)]
-pub struct GamepadMapping {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GamepadBinding {
     button_map: HashMap<Button, Buttons>,
     deadzone: f32,
 }
 
-impl Default for GamepadMapping {
-    fn default() -> GamepadMapping {
+impl Default for GamepadBinding {
+    fn default() -> GamepadBinding {
         let mut button_map = HashMap::new();
 
         button_map.insert(Button::South, Buttons::K);
@@ -330,7 +421,7 @@ impl Default for GamepadMapping {
         button_map.insert(Button::North, Buttons::S);
         button_map.insert(Button::East, Buttons::H);
 
-        GamepadMapping { button_map, deadzone: 0.1 }
+        GamepadBinding { button_map, deadzone: 0.1 }
     }
 }
 

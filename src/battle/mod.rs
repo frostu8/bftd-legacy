@@ -23,6 +23,7 @@
 //!   The game will attempt to process hitboxes, hurtboxes and collision boxes
 //!   and update their states accordingly.
 
+pub mod fsm;
 pub mod script;
 mod local;
 mod net;
@@ -30,9 +31,9 @@ mod net;
 pub use local::LocalBattle;
 pub use net::{NetBattle, NetPlayer};
 
-use crate::fsm::{Key, Fsm};
+use fsm::{Key, Fsm};
 use crate::input::Buffer as InputBuffer;
-use crate::Context;
+use crate::render::{Drawable, Renderer};
 
 use std::hash::{Hash, Hasher};
 
@@ -43,7 +44,7 @@ use glam::f32::{Affine2, Vec2};
 use anyhow::Error;
 
 /// How many frames of logic are elapsed in a single second.
-pub const FRAMES_PER_SECOND: u32 = 60;
+pub const FRAMES_PER_SECOND: u64 = 60;
 
 /// The size of each stage in the game.
 ///
@@ -100,7 +101,7 @@ impl Arena {
     }
 
     /// Draws the battle to a graphics context.
-    pub fn draw(&self, cx: &mut Context) -> Result<(), Error> {
+    pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
         self.p2.draw(cx)?;
         self.p1.draw(cx)
     }
@@ -205,7 +206,7 @@ impl Player {
     }
 
     /// Draws the player to the screen.
-    pub fn draw(&self, cx: &mut ggez::Context) -> Result<(), Error> {
+    pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
         let sprite = &self.fsm
             .get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?
@@ -214,13 +215,15 @@ impl Player {
             .sprite;
 
         if let Some(sprite) = sprite {
-            let mut transform = Affine2::from_translation(self.state.pos);
+            let mut transform = Affine2::from_translation(self.state.pos * (1. / 500.));
 
             if self.state.flipped {
                 transform = transform * Affine2::from_scale(Vec2::new(-1.0, 1.0));
             }
 
-            sprite.draw(cx, transform)?;
+            let mut sprite = sprite.clone();
+            sprite.set_transform(sprite.transform() * transform);
+            sprite.draw(cx);
         }
         
         Ok(())

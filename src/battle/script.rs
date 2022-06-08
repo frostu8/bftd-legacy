@@ -4,7 +4,7 @@ pub use rhai::{AST, Scope};
 use rhai::{Shared, Module, packages::{Package, StandardPackage}};
 
 use super::State;
-use crate::fsm::Key;
+use super::fsm::Key;
 use crate::input::{Direction, Buffer};
 
 use std::ops::{Add, Sub, Mul, Div, Deref};

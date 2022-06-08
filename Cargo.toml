@@ -7,8 +7,14 @@ edition = "2021"
 description = "Battle for the Domain"
 
 [dependencies]
+wgpu = { git = "https://github.com/gfx-rs/wgpu", rev = "a3b2418" }
+winit = "0.26"
+image = "0.24"
+pollster = "0.2"
+gilrs = { version = "0.9", features = ["serde-serialize"] }
+uuid = { version = "1.1", features = ["serde"] }
+
 log = "0.4"
-ggez = "0.7"
 semver = "1.0"
 ron = "0.7"
 serde = "1.0"

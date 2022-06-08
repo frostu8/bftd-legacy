@@ -1,6 +1,7 @@
 //! Local battle manager.
 
 use crate::input::{sampler::{self, Handle}, Buffer as InputBuffer};
+use crate::render::Renderer;
 use crate::Context;
 
 use super::{Arena, FRAMES_PER_SECOND};
@@ -34,13 +35,13 @@ impl LocalBattle {
     /// Because all of the input processing is done locally, this will wait
     /// until each frame is done processing.
     pub fn update(&mut self, cx: &mut Context) -> Result<(), Error> {
-        while ggez::timer::check_update_time(cx, FRAMES_PER_SECOND) {
+        while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
             // sample from our players
             self.p1.inputs.push(cx.input.sample(self.p1.id).unwrap_or_default());
             self.p2.inputs.push(cx.input.sample(self.p2.id).unwrap_or_default());
 
             self.arena.update(
-                cx.script_engine,
+                &cx.script,
                 &self.p1.inputs,
                 &self.p2.inputs,
             )?;
@@ -50,7 +51,7 @@ impl LocalBattle {
     }
     
     /// Draws the battle to a graphics context.
-    pub fn draw(&mut self, cx: &mut Context) -> Result<(), Error> {
+    pub fn draw(&mut self, cx: &mut Renderer) -> Result<(), Error> {
         self.arena.draw(cx)
     }
 }
