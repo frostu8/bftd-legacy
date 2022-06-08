@@ -183,7 +183,8 @@ impl Drawable for Sprite {
         let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
 
         // recreate transform matrix
-        let transform = renderer.clip
+        let transform = 
+            renderer.clip
             * renderer.world
             * self.transform
             * Affine2::from_scale(Vec2::new(x, 1.0));

@@ -102,9 +102,21 @@ impl Arena {
 
     /// Draws the battle to a graphics context.
     pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
+        let aspect_ratio = 1. / cx.aspect_ratio();
+
+        let min = self.p1.state.pos.min(self.p2.state.pos) - Vec2::new(0.8, 0.);
+        let max = self.p1.state.pos.max(self.p2.state.pos) + Vec2::new(0.8, 2.0);
+
+        let center = (min + max) / 2.;
+        
+        let scale_x = aspect_ratio / (max.x - min.x);
+        let scale_y = 1. / max.y - min.y;
+
+        let scale = scale_x.min(scale_y).min(0.4);
+
         cx.set_transform(
-            Affine2::from_scale(Vec2::new(0.4, 0.4))
-            * Affine2::from_translation(Vec2::new(0.0, 0.25))
+            Affine2::from_scale(Vec2::new(scale, scale))
+            * Affine2::from_translation(-center)
         );
 
         self.p2.draw(cx)?;
@@ -220,11 +232,13 @@ impl Player {
             .sprite;
 
         if let Some(sprite) = sprite {
-            let mut transform = Affine2::from_translation(self.state.pos * (1. / 500.));
+            let mut transform = Affine2::from_translation(self.state.pos);
 
             if self.state.flipped {
                 transform = transform * Affine2::from_scale(Vec2::new(-1.0, 1.0));
             }
+
+            transform = transform * Affine2::from_translation(Vec2::new(0., 0.5));
 
             let mut sprite = sprite.clone();
             sprite.set_transform(sprite.transform() * transform);
@@ -276,7 +290,7 @@ impl State {
     /// Creates a new, initial state for player one.
     fn initial_p1() -> State {
         State {
-            pos: Vec2::new(-500., 0.),
+            pos: Vec2::new(-1., 0.),
             flipped: false,
             key: Key::from("idle"),
             frame: 0,
@@ -286,7 +300,7 @@ impl State {
     /// Creates a new, initial state for player two.
     fn initial_p2() -> State {
         State {
-            pos: Vec2::new(500., 0.),
+            pos: Vec2::new(1., 0.),
             flipped: true,
             key: Key::from("idle"),
             frame: 0,

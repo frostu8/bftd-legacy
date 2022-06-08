@@ -21,20 +21,15 @@ var<uniform> tex_transform: mat4x4<f32>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
-    var position: vec2<f32>;
-    switch in_vertex_index {
-        case 0: { position = vec2<f32>(0.0, 0.0); }
-        case 1: { position = vec2<f32>(1.0, 0.0); }
-        case 2: { position = vec2<f32>(1.0, 1.0); }
-        case 3: { position = vec2<f32>(1.0, 1.0); }
-        case 4: { position = vec2<f32>(0.0, 1.0); }
-        case 5: { position = vec2<f32>(0.0, 0.0); }
-        default { discard; }
-    }
+    let x = f32((i32(in_vertex_index) + 2) / 3 % 2);
+    let y = f32((i32(in_vertex_index) + 1) / 3 % 2);
+    let v = 1.0 - y;
+    let position = vec2<f32>(x, y) - vec2<f32>(0.5, 0.5);
+    let tex_coord = vec2<f32>(x, v);
 
     var result: VertexOutput;
-    result.position = transform * vec4<f32>(position - vec2<f32>(0.5, 0.5), 1.0, 1.0);
-    result.tex_coord = tex_transform * vec4<f32>(position, 1.0, 1.0);
+    result.position = transform * vec4<f32>(position, 1.0, 1.0);
+    result.tex_coord = tex_transform * vec4<f32>(tex_coord, 1.0, 1.0);
     return result;
 }
 

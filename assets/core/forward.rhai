@@ -1,6 +1,6 @@
 // A state script that moves the character forward during the active state.
 
-const MOVEMENT_PER_SECOND = 700.0 / 60.0;
+const MOVEMENT_PER_SECOND = 2.0 / 60.0;
 
 fn onupdate() {
     if state.flipped {

@@ -102,20 +102,18 @@ impl Context {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
+    /// The aspect ratio of the swapchain texture.
+    pub fn aspect_ratio(&self) -> f32 {
+        self.surface_config.height as f32 / self.surface_config.width as f32
+    }
+
     /// Begins a render frame, calls the closure and finalizes the frame.
     pub fn begin<F>(&self, f: F)
     where
         F: FnOnce(&mut Renderer),
     {
         // find clip transform
-        // Our clip matrix aligns (0, 0) to the bottom left corner of the screen.
-        // It also normalizes the dimensions of the graphics space so that it is
-        // 1.0 unit tall.
-        let norm_width = self.surface_config.height as f32 / self.surface_config.width as f32;
-        
-        let clip = Affine2::from_scale(Vec2::new(norm_width, 1.0))
-            * Affine2::from_scale(Vec2::new(2.0, 2.0))
-            * Affine2::from_scale(Vec2::new(1., -1.));
+        let clip = Affine2::from_scale(Vec2::new(self.aspect_ratio() * 2., 2.));
 
         // create swapchain view
         let frame = self
