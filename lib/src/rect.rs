@@ -1,6 +1,6 @@
 //! Behold, the power of the rectangle!
 
-use glam::f32::{Vec2, Affine2};
+use glam::f32::{Affine2, Vec2};
 
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,10 @@ pub struct Rect {
 impl Rect {
     /// Creates a new `Rect` from two points.
     pub fn new(x1: f32, y1: f32, x2: f32, y2: f32) -> Rect {
-        Rect { p1: Vec2::new(x1, y1), p2: Vec2::new(x2, y2) }
+        Rect {
+            p1: Vec2::new(x1, y1),
+            p2: Vec2::new(x2, y2),
+        }
     }
 
     /// Creates a new `Rect` from a bottom-left point and a width height.
@@ -85,8 +88,7 @@ impl Rect {
 
     /// Scales the `Rect` by a given vector about a given point.
     pub fn scale_about(self, scale: Vec2, origin: Vec2) -> Rect {
-        self
-            .transform(Affine2::from_translation(-origin))
+        self.transform(Affine2::from_translation(-origin))
             .transform(Affine2::from_scale(scale))
             .transform(Affine2::from_translation(origin))
     }
@@ -127,4 +129,3 @@ mod tests {
         assert!(rect1.collides(&rect1));
     }
 }
-

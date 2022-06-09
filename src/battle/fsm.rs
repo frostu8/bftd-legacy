@@ -1,24 +1,17 @@
 //! Finite-state machines implemented by [`Fsm`].
 
-use bftd_lib::Rect;
-
-use glam::f32::{Affine2, Mat4, Vec2};
-
-use std::sync::Arc;
-use std::ops::Deref;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::Arc;
 
-use crate::assets::Asset;
 use crate::battle::script::AST;
 use crate::render::Sprite;
-
-use anyhow::Error;
 
 /// A cheaply-cloneable key for a finite-state machine entry.
 pub type Key = Arc<str>;
 
 /// Some finite-state machine code.
-/// 
+///
 /// An entity controlled by an [`Fsm`] has some common properties:
 /// * Has an origin on the stage.
 /// * Creates hitboxes and hurtboxes.
@@ -108,4 +101,3 @@ pub struct Frame {
     /// The sprite to display for this frame.
     pub sprite: Option<Sprite>,
 }
-

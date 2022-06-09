@@ -9,12 +9,12 @@ pub use sprite::Sprite;
 
 use pollster::FutureExt as _;
 
+use glam::f32::{Affine2, Vec2};
 use wgpu::util::DeviceExt;
 use winit::window::Window;
-use glam::f32::{Affine2, Vec2};
 
+use std::io::{BufReader, Read, Seek};
 use std::ops::Deref;
-use std::io::{Read, Seek, BufReader};
 use std::sync::Arc;
 
 use anyhow::Error;
@@ -124,8 +124,9 @@ impl Context {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder =
-            self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
             // clear screen
             let _rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -144,7 +145,7 @@ impl Context {
 
         f(&mut Renderer {
             cx: self,
-            
+
             world: Affine2::IDENTITY,
             clip,
 
@@ -179,8 +180,7 @@ impl Context {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_DST,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             },
             image.as_raw(),
         );
@@ -259,4 +259,3 @@ Cannot find a graphics adapter!
 
 Check if your drivers are installed or up-to-date. bftd only supports Vulkan \
 on linux, Direct3D on Windows and Metal on MacOSX."#;
-

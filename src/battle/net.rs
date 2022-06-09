@@ -1,13 +1,16 @@
 //! A networked battle using [`backroll`].
 
-use super::{Arena, FRAMES_PER_SECOND, State};
 use super::script::Scope;
+use super::{Arena, State, FRAMES_PER_SECOND};
 
-use crate::input::{Buffer as InputBuffer, sampler::Handle as InputHandle, Inputs};
+use crate::input::{sampler::Handle as InputHandle, Buffer as InputBuffer, Inputs};
 use crate::render::Renderer;
 use crate::Context;
 
-use backroll::{P2PSession, P2PSessionBuilder, PlayerHandle, command::{Command, Commands}};
+use backroll::{
+    command::{Command, Commands},
+    P2PSession, P2PSessionBuilder, PlayerHandle,
+};
 use backroll_transport_udp::UdpManager;
 
 use anyhow::Error;
@@ -79,7 +82,7 @@ impl NetBattle {
 
         Ok(())
     }
-    
+
     /// Draws the battle to a graphics context.
     pub fn draw(&mut self, cx: &mut Renderer) -> Result<(), Error> {
         self.arena.draw(cx)
@@ -116,7 +119,7 @@ impl NetBattle {
                 }
                 Command::Event(ev) => match ev {
                     _ => (),
-                }
+                },
             }
         }
 
@@ -194,4 +197,3 @@ impl PlayerSnapshot {
         player.state = self.state;
     }
 }
-

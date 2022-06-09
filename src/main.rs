@@ -2,12 +2,10 @@ use anyhow::Error;
 
 use winit::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent, DeviceEvent, ElementState},
+    event::{DeviceEvent, ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-
-use glam::f32::{Affine2, Vec2};
 
 use bftd::Context;
 
@@ -44,12 +42,10 @@ pub fn main() -> Result<(), Error> {
             Event::DeviceEvent {
                 event: DeviceEvent::Key(key),
                 ..
-            } => {
-                match key.state {
-                    ElementState::Pressed => cx.input.process_key_down(key.scancode),
-                    ElementState::Released => cx.input.process_key_up(key.scancode),
-                }
-            }
+            } => match key.state {
+                ElementState::Pressed => cx.input.process_key_down(key.scancode),
+                ElementState::Released => cx.input.process_key_up(key.scancode),
+            },
             Event::RedrawRequested(_) => {
                 cx.render.begin(|mut cx| {
                     // set camera transform
@@ -70,4 +66,3 @@ pub fn main() -> Result<(), Error> {
         }
     });
 }
-

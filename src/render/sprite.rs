@@ -1,12 +1,12 @@
 //! Sprite renderer.
 
-use super::{Texture, Drawable, Renderer};
+use super::{Drawable, Renderer, Texture};
 
 use std::fmt::{self, Debug, Formatter};
 
-use wgpu::util::DeviceExt;
-use glam::f32::{Affine2, Mat3, Mat4, Vec2};
 use bftd_lib::Rect;
+use glam::f32::{Affine2, Mat3, Mat4, Vec2};
+use wgpu::util::DeviceExt;
 
 /// Sprite shader.
 pub struct Shader {
@@ -18,10 +18,7 @@ pub struct Shader {
 
 impl Shader {
     /// Creates a new `Shader`.
-    pub fn new(
-        device: &wgpu::Device,
-        surface_config: &wgpu::SurfaceConfiguration,
-    ) -> Shader {
+    pub fn new(device: &wgpu::Device, surface_config: &wgpu::SurfaceConfiguration) -> Shader {
         let shader = device.create_shader_module(&wgpu::include_wgsl!("sprite.wgsl"));
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -37,9 +34,7 @@ impl Shader {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float {
-                            filterable: true,
-                        },
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
@@ -131,7 +126,10 @@ impl Sprite {
     pub fn new(texture: Texture) -> Sprite {
         let sprite = Sprite {
             texture,
-            src: Rect { p1: Vec2::ZERO, p2: Vec2::ONE },
+            src: Rect {
+                p1: Vec2::ZERO,
+                p2: Vec2::ONE,
+            },
             transform: Default::default(),
         };
 
@@ -161,8 +159,7 @@ impl Sprite {
 
 impl Debug for Sprite {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f
-            .debug_struct("Sprite")
+        f.debug_struct("Sprite")
             .field("src", &self.src)
             .field("transform", &self.transform)
             .finish_non_exhaustive()
@@ -180,76 +177,86 @@ impl From<Texture> for Sprite {
 impl Drawable for Sprite {
     fn draw(&self, renderer: &mut Renderer) {
         // normalize width
-        let x = (self.src.width() * self.texture.width() as f32) / (self.src.height() * self.texture.height() as f32);
+        let x = (self.src.width() * self.texture.width() as f32)
+            / (self.src.height() * self.texture.height() as f32);
 
         // recreate transform matrix
-        let transform = 
-            renderer.clip
+        let transform = renderer.clip
             * renderer.world
             * self.transform
             * Affine2::from_scale(Vec2::new(x, 1.0));
         let transform = Mat4::from_mat3(Mat3::from(transform));
         let transform_ref: &[f32; 16] = transform.as_ref();
-        let transform = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("transform uniform"),
-            contents: bytemuck::cast_slice(transform_ref),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let transform = renderer
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("transform uniform"),
+                contents: bytemuck::cast_slice(transform_ref),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
 
         // do the same for the tex coord transform
         let tex_transform = Affine2::from_scale(Vec2::new(self.src.width(), self.src.height()))
             * Affine2::from_translation(Vec2::new(self.src.left(), self.src.bottom()));
         let tex_transform = Mat4::from_mat3(Mat3::from(tex_transform));
         let tex_transform_ref: &[f32; 16] = tex_transform.as_ref();
-        let tex_transform = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("tex transform uniform"),
-            contents: bytemuck::cast_slice(tex_transform_ref),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let tex_transform = renderer
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("tex transform uniform"),
+                contents: bytemuck::cast_slice(tex_transform_ref),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
 
-        let texture_view = self.texture.texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("texture"),
-            ..Default::default()
-        });
+        let texture_view = self
+            .texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                label: Some("texture"),
+                ..Default::default()
+            });
 
-        let bind_group = renderer.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &renderer.sprite.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&renderer.sprite.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: transform.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: tex_transform.as_entire_binding(),
-                },
-            ],
-            label: None,
-        });
+        let bind_group = renderer
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &renderer.sprite.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&renderer.sprite.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: transform.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: tex_transform.as_entire_binding(),
+                    },
+                ],
+                label: None,
+            });
 
-        let mut rpass = renderer.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &renderer.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
+        let mut rpass = renderer
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &renderer.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
         rpass.set_pipeline(&renderer.cx.sprite.pipeline);
         rpass.set_bind_group(0, &bind_group, &[]);
         rpass.draw(0..6, 0..1);
     }
 }
-

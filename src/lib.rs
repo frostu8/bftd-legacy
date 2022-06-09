@@ -6,10 +6,10 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
-pub mod render;
 pub mod assets;
 pub mod battle;
 pub mod input;
+pub mod render;
 pub mod timer;
 
 use input::Handle;
@@ -68,4 +68,3 @@ impl Game {
         self.battle.draw(cx).unwrap();
     }
 }
-

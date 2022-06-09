@@ -1,8 +1,8 @@
 //! Character modules.
 
 use crate::Rect;
-use serde::{Serialize, Deserialize};
 use glam::f32::Affine2;
+use serde::{Deserialize, Serialize};
 
 /// A character definition.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -50,4 +50,3 @@ pub struct Sprite {
 fn default_rect() -> Rect {
     Rect::new_wh(0., 0., 1., 1.)
 }
-

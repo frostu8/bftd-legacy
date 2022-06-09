@@ -4,16 +4,16 @@ use bftd_lib::Metadata;
 
 use anyhow::Error;
 
+use crate::battle::fsm::{Frame, Fsm, Key, State};
 use crate::render::Texture;
-use crate::battle::fsm::{Key, Fsm, State, Frame};
 use crate::Context;
 
+use std::any::Any;
+use std::collections::HashMap;
 use std::fs::File;
+use std::io::{Read, Seek};
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
-use std::collections::HashMap;
-use std::io::{Read, Seek};
-use std::any::Any;
 
 /// An asset's type.
 pub type Asset<T> = Arc<T>;
@@ -34,7 +34,7 @@ impl Bundle {
         let metadata = File::open(path.join("bundle.ron"))?;
         let metadata = ron::de::from_reader(metadata)?;
 
-        Ok(Bundle { 
+        Ok(Bundle {
             metadata,
             cache: HashMap::new(),
             path,
@@ -54,7 +54,10 @@ impl Bundle {
             }
         }
 
-        debug!("loading file \"{}\" from bundle {}...", path, self.metadata.name);
+        debug!(
+            "loading file \"{}\" from bundle {}...",
+            path, self.metadata.name
+        );
 
         // clip leading slash, if there is any
         let path = path.trim_start_matches('/');
@@ -83,7 +86,7 @@ impl Bundle {
                     let ast = cx.script.compile(script.as_str())?;
 
                     Some(ast)
-                },
+                }
                 None => None,
             };
 
@@ -97,7 +100,7 @@ impl Bundle {
 
                         // FIXME: possibly bad if we avoid asset handling Arcs
                         Some(texture.deref().clone().into())
-                    },
+                    }
                     None => None,
                 };
 
@@ -160,8 +163,7 @@ macro_rules! impl_ron {
                 ron::de::from_reader(stream).map_err(From::from)
             }
         }
-    }
+    };
 }
 
 impl_ron!(bftd_lib::Character);
-

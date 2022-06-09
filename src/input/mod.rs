@@ -5,13 +5,13 @@ pub mod sampler;
 pub use sampler::{Handle, Sampler};
 
 use std::fmt::{self, Debug, Formatter};
-use std::sync::{Arc, RwLock};
 use std::hash::{Hash, Hasher};
-use std::ops::{BitOr, BitOrAssign, BitAnd, BitAndAssign, Not};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not};
+use std::sync::{Arc, RwLock};
 
 use bytemuck::{Pod, Zeroable};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// A buffer for inputs. Not to be confused with an
 /// ["input buffer"](https://supersmashbros.fandom.com/wiki/Input_Buffering).
@@ -133,7 +133,7 @@ impl Direction {
     /// ```
     /// # use bftd::input::Direction;
     /// let input = Direction::D3; // a launch input
-    /// 
+    ///
     /// assert_ne!(input.flip(), Direction::D3); // no longer launches!
     ///                                          // your input has been ruined!
     /// assert_eq!(input.flip(), Direction::D1);
@@ -280,9 +280,8 @@ impl BitAndAssign for Buttons {
 
 impl Not for Buttons {
     type Output = Buttons;
-    
+
     fn not(self) -> Buttons {
         Buttons(!self.0 & Buttons::all().0)
     }
 }
-

@@ -2,16 +2,19 @@
 
 use winit::event::ScanCode;
 
-use gilrs::{ev::{Axis, Button}, Gilrs, GamepadId, EventType};
+use gilrs::{
+    ev::{Axis, Button},
+    EventType, GamepadId, Gilrs,
+};
 
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 
-use crate::input::{Direction, Inputs, Buttons};
+use crate::input::{Buttons, Direction, Inputs};
 
 use uuid::Uuid;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// The global input sampler.
 ///
@@ -82,7 +85,7 @@ impl Sampler {
             .map(|s| s.as_mut().map(|s| s.sample()))
             .flatten()
     }
-    
+
     /// Polls lower level input constructs.
     pub fn poll(&mut self) {
         while let Some(ev) = self.gilrs.next_event() {
@@ -105,7 +108,7 @@ impl Sampler {
 
                     // add new device to end if no spot was found
                     self.devices.push(Some(device));
-                },
+                }
                 EventType::Disconnected => {
                     for device in self.devices.iter_mut() {
                         if let Some(Device::Gamepad(gamepad)) = device {
@@ -114,7 +117,7 @@ impl Sampler {
                             }
                         }
                     }
-                },
+                }
                 _ => (),
             }
         }
@@ -155,21 +158,21 @@ impl Sampler {
     }
 
     fn gamepads_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Gamepad> {
-        self.devices
-            .iter_mut()
-            .filter_map(|s| s.as_mut().and_then(|s| match s {
+        self.devices.iter_mut().filter_map(|s| {
+            s.as_mut().and_then(|s| match s {
                 Device::Gamepad(k) => Some(k),
                 _ => None,
-            }))
+            })
+        })
     }
 
     fn keyboards_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Keyboard> {
-        self.devices
-            .iter_mut()
-            .filter_map(|s| s.as_mut().and_then(|s| match s {
+        self.devices.iter_mut().filter_map(|s| {
+            s.as_mut().and_then(|s| match s {
                 Device::Keyboard(k) => Some(k),
                 _ => None,
-            }))
+            })
+        })
     }
 }
 
@@ -326,7 +329,10 @@ impl Default for KeyboardBinding {
         button_map.insert(0x18, Buttons::S);
         button_map.insert(0x19, Buttons::H);
 
-        KeyboardBinding { direction_map, button_map }
+        KeyboardBinding {
+            direction_map,
+            button_map,
+        }
     }
 }
 
@@ -382,14 +388,14 @@ impl Gamepad {
             Direction::D5
         } else {
             match angle {
-                a if a > -157.5  && a <= -112.5 => Direction::D1,
-                a if a > -112.5  && a <= -67.5  => Direction::D2,
-                a if a > -67.5   && a <= -22.5  => Direction::D3,
-                a if a > -22.5   && a <= 22.5   => Direction::D6,
-                a if a > 22.5    && a <= 67.5   => Direction::D9,
-                a if a > 67.5    && a <= 112.5  => Direction::D8,
-                a if a > 112.5   && a <= 157.5  => Direction::D7,
-                a if a > 157.5   && a <= 180.0  => Direction::D4,
+                a if a > -157.5 && a <= -112.5 => Direction::D1,
+                a if a > -112.5 && a <= -67.5 => Direction::D2,
+                a if a > -67.5 && a <= -22.5 => Direction::D3,
+                a if a > -22.5 && a <= 22.5 => Direction::D6,
+                a if a > 22.5 && a <= 67.5 => Direction::D9,
+                a if a > 67.5 && a <= 112.5 => Direction::D8,
+                a if a > 112.5 && a <= 157.5 => Direction::D7,
+                a if a > 157.5 && a <= 180.0 => Direction::D4,
                 a if a >= -180.0 && a <= -157.5 => Direction::D4,
                 _ => unreachable!(),
             }
@@ -421,7 +427,9 @@ impl Default for GamepadBinding {
         button_map.insert(Button::North, Buttons::S);
         button_map.insert(Button::East, Buttons::H);
 
-        GamepadBinding { button_map, deadzone: 0.1 }
+        GamepadBinding {
+            button_map,
+            deadzone: 0.1,
+        }
     }
 }
-

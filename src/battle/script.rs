@@ -1,13 +1,16 @@
 //! Scripting support for battles.
 
-pub use rhai::{AST, Scope};
-use rhai::{Shared, Module, packages::{Package, StandardPackage}};
+use rhai::{
+    packages::{Package, StandardPackage},
+    Module, Shared,
+};
+pub use rhai::{Scope, AST};
 
-use super::State;
 use super::fsm::Key;
-use crate::input::{Direction, Buffer};
+use super::State;
+use crate::input::{Buffer, Direction};
 
-use std::ops::{Add, Sub, Mul, Div, Deref};
+use std::ops::{Add, Deref, Div, Mul, Sub};
 
 use glam::f32::Vec2;
 
@@ -45,16 +48,8 @@ impl Engine {
             // Vec2 impl
             .register_type::<Vec2>()
             .register_fn("vec2", Vec2::new)
-            .register_get_set(
-                "x",
-                |v: &mut Vec2| v.x,
-                |v: &mut Vec2, x: f32| v.x = x,
-            )
-            .register_get_set(
-                "y",
-                |v: &mut Vec2| v.y,
-                |v: &mut Vec2, y: f32| v.y = y,
-            )
+            .register_get_set("x", |v: &mut Vec2| v.x, |v: &mut Vec2, x: f32| v.x = x)
+            .register_get_set("y", |v: &mut Vec2| v.y, |v: &mut Vec2, y: f32| v.y = y)
             .register_fn("+", <Vec2 as Add<Vec2>>::add)
             .register_fn("-", <Vec2 as Sub<Vec2>>::sub)
             .register_fn("*", <Vec2 as Mul<Vec2>>::mul)
@@ -76,15 +71,20 @@ impl Engine {
                 |s: &mut State| s.pos,
                 |s: &mut State, pos: Vec2| s.pos = pos,
             )
-            .register_fn("direction_x", |s: &mut State| {
-                if s.flipped {
-                    -1.0f32
-                } else {
-                    1.0f32
-                }
-            })
+            .register_fn(
+                "direction_x",
+                |s: &mut State| {
+                    if s.flipped {
+                        -1.0f32
+                    } else {
+                        1.0f32
+                    }
+                },
+            )
             .register_get("flipped", |s: &mut State| s.flipped)
-            .register_fn("change", |s: &mut State, name: &str| s.key = Key::from(name));
+            .register_fn("change", |s: &mut State, name: &str| {
+                s.key = Key::from(name)
+            });
 
         Engine(engine)
     }
@@ -97,4 +97,3 @@ impl Deref for Engine {
         &self.0
     }
 }
-

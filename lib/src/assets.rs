@@ -1,7 +1,7 @@
 //! Asset management.
 
-use serde::{Deserialize, Serialize};
 use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 
 /// Bundle metadata.
@@ -18,4 +18,3 @@ impl Display for Metadata {
         write!(f, "{}-{}", self.name, self.version)
     }
 }
-

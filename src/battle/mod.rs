@@ -24,16 +24,16 @@
 //!   and update their states accordingly.
 
 pub mod fsm;
-pub mod script;
 mod local;
 mod net;
+pub mod script;
 
 pub use local::LocalBattle;
 pub use net::{NetBattle, NetPlayer};
 
-use fsm::{Key, Fsm};
 use crate::input::Buffer as InputBuffer;
 use crate::render::{Drawable, Renderer};
+use fsm::{Fsm, Key};
 
 use std::hash::{Hash, Hasher};
 
@@ -108,15 +108,14 @@ impl Arena {
         let max = self.p1.state.pos.max(self.p2.state.pos) + Vec2::new(0.4, 2.0);
 
         let center = (min + max) / 2.;
-        
+
         let scale_x = aspect_ratio / (max.x - min.x);
         let scale_y = 1. / max.y - min.y;
 
         let scale = scale_x.min(scale_y).min(0.4);
 
         cx.set_transform(
-            Affine2::from_scale(Vec2::new(scale, scale))
-            * Affine2::from_translation(-center)
+            Affine2::from_scale(Vec2::new(scale, scale)) * Affine2::from_translation(-center),
         );
 
         self.p2.draw(cx)?;
@@ -136,11 +135,7 @@ impl Player {
     ///
     /// The player will start with the `initial_state` passed to it. The engine
     /// is required to be passed to run initial logic.
-    pub fn new(
-        engine: &Engine,
-        fsm: Fsm,
-        initial_state: State,
-    ) -> Result<Player, Error> {
+    pub fn new(engine: &Engine, fsm: Fsm, initial_state: State) -> Result<Player, Error> {
         let mut player = Player {
             fsm,
             state: initial_state,
@@ -152,7 +147,7 @@ impl Player {
 
         Ok(player)
     }
-    
+
     /// The player's state.
     pub fn state(&self) -> &State {
         &self.state
@@ -169,32 +164,22 @@ impl Player {
     }
 
     /// Updates the player's state in respect to the inputs given.
-    pub fn update(
-        &mut self,
-        engine: &Engine,
-        inputs: &InputBuffer,
-    ) -> Result<(), Error> {
+    pub fn update(&mut self, engine: &Engine, inputs: &InputBuffer) -> Result<(), Error> {
         self.scope.push("inputs", inputs.clone());
 
-        let state = &self.fsm
+        let state = &self
+            .fsm
             .get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?;
 
         while let Some(script) = &state.script {
             // run the script and update the character's state
             self.scope.push("state", self.state.clone());
-            engine.call_fn_raw(
-                &mut self.scope,
-                script,
-                true,
-                true,
-                "onupdate",
-                None,
-                [],
-            )?;
+            engine.call_fn_raw(&mut self.scope, script, true, true, "onupdate", None, [])?;
 
             // see how the script updated the state
-            let state = self.scope
+            let state = self
+                .scope
                 .get_value::<State>("state")
                 .ok_or_else(|| anyhow!("script replaced `state` variable"))?;
 
@@ -208,12 +193,7 @@ impl Player {
             }
 
             if self.state.key != key_old {
-                eval(
-                    &self.state.key,
-                    &self.fsm,
-                    engine,
-                    &mut self.scope,
-                )?;
+                eval(&self.state.key, &self.fsm, engine, &mut self.scope)?;
             } else {
                 break;
             }
@@ -224,7 +204,8 @@ impl Player {
 
     /// Draws the player to the screen.
     pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
-        let sprite = &self.fsm
+        let sprite = &self
+            .fsm
             .get(&self.state.key)
             .ok_or_else(|| anyhow!("player in an invalid state"))?
             .frame(self.state.frame)
@@ -244,17 +225,12 @@ impl Player {
             sprite.set_transform(sprite.transform() * transform);
             sprite.draw(cx);
         }
-        
+
         Ok(())
     }
 }
 
-fn eval(
-    key: &str,
-    fsm: &Fsm,
-    engine: &Engine,
-    scope: &mut Scope<'static>,
-) -> Result<(), Error> {
+fn eval(key: &str, fsm: &Fsm, engine: &Engine, scope: &mut Scope<'static>) -> Result<(), Error> {
     let state = fsm
         .get(key)
         .ok_or_else(|| anyhow!("player in an invalid state"))?;
@@ -322,4 +298,3 @@ impl Hash for State {
         self.frame.hash(hasher);
     }
 }
-
