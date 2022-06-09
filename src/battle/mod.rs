@@ -13,12 +13,12 @@
 //! * **Inputs**  
 //!   Inputs are sampled by a player's sampler and pushed to the front of that
 //!   player's input queue.
-//! * **Flip**
-//!   Character players are flipped if they need to be.
 //! * **Update**  
 //!   The players' and projectiles' individual states are updated parallel to
 //!   each other. If there is a state change, this stage is repeated for that
 //!   entity.
+//! * **Flip**
+//!   Character players are flipped if they need to be.
 //! * **Collide**  
 //!   The game will attempt to process hitboxes, hurtboxes and collision boxes
 //!   and update their states accordingly.
@@ -84,6 +84,10 @@ impl Arena {
         p1: &InputBuffer,
         p2: &InputBuffer,
     ) -> Result<(), Error> {
+        // first, update each player's individual state
+        self.p1.update(engine, p1)?;
+        self.p2.update(engine, p2)?;
+
         // do flip post-processing after update
         if self.p1.pos().x < self.p2.pos().x {
             self.p1.state_mut().flipped = false;
@@ -92,10 +96,6 @@ impl Arena {
             self.p1.state_mut().flipped = true;
             self.p2.state_mut().flipped = false;
         }
-
-        // first, update each player's individual state
-        self.p1.update(engine, p1)?;
-        self.p2.update(engine, p2)?;
 
         Ok(())
     }

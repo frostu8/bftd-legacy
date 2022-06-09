@@ -1,5 +1,7 @@
 //! # `bftd`
 
+#![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init)]
+
 #[macro_use]
 extern crate anyhow;
 
@@ -8,6 +10,7 @@ extern crate log;
 
 pub mod assets;
 pub mod battle;
+pub mod config;
 pub mod input;
 pub mod render;
 pub mod timer;
@@ -29,12 +32,14 @@ pub struct Context {
     pub frame_limiter: timer::FrameLimiter,
     /// A thread pool for I/O.
     pub task_pool: bevy_tasks::TaskPool,
+    /// Arguments passed to the application.
+    pub args: config::Args,
 }
 
 /// The game.
 pub struct Game {
     core_bundle: assets::Bundle,
-    battle: battle::LocalBattle,
+    battle: battle::NetBattle,
 }
 
 impl Game {
@@ -45,11 +50,24 @@ impl Game {
         let gdfsm = core_bundle.load_character(cx, "/characters/grand_dad.ron")?;
         let hhfsm = core_bundle.load_character(cx, "/characters/hh.ron")?;
 
+        // note that arena is being made the same exact way
         let arena = battle::Arena::new(&cx.script, gdfsm, hhfsm)?;
+
+        let p1: std::net::SocketAddr = ([127, 0, 0, 1], 19191).into();
+        let p2: std::net::SocketAddr = ([127, 0, 0, 1], 19192).into();
+
+        let battle = if cx.args.netmode == 0 {
+            battle::NetBattle::new(cx, arena, p1, &[battle::NetPlayer::Local(Handle::new(0)), battle::NetPlayer::Remote(p2)])?
+        } else if cx.args.netmode == 1 {
+            battle::NetBattle::new(cx, arena, p2, &[battle::NetPlayer::Remote(p1), battle::NetPlayer::Local(Handle::new(0))])?
+        } else {
+            todo!()
+        };
 
         Ok(Game {
             core_bundle,
-            battle: battle::LocalBattle::new(arena, Handle::new(0), Handle::new(1)),
+            battle,
+            //battle: battle::LocalBattle::new(arena, Handle::new(0), Handle::new(1)),
         })
     }
 
@@ -68,3 +86,4 @@ impl Game {
         self.battle.draw(cx).unwrap();
     }
 }
+

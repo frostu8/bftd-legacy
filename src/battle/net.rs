@@ -11,22 +11,25 @@ use backroll::{
     command::{Command, Commands},
     P2PSession, P2PSessionBuilder, PlayerHandle,
 };
-use backroll_transport_udp::UdpManager;
+use backroll_transport_udp::{UdpManager, UdpConnectionConfig};
 
 use anyhow::Error;
 
-use std::net::SocketAddr;
+use std::net::{ToSocketAddrs, SocketAddr};
+use std::hash::{Hash, Hasher};
+use std::mem::MaybeUninit;
 
 /// A networked battle manager with a local player and a remote peer.
 pub struct NetBattle {
     arena: Arena,
     session: P2PSession<NetConfig>,
-    transport: UdpManager,
+    _transport: UdpManager,
     // the player at index 0 is left, index 1 is right.
     players: [Player; 2],
 }
 
 /// Config for use in initialization of a [`NetBattle`].
+#[derive(Clone)]
 pub enum NetPlayer {
     /// A local player with an input handle.
     Local(InputHandle),
@@ -38,30 +41,59 @@ impl NetBattle {
     /// Creates a new `NetBattle` with a given config.
     ///
     /// This does not perform any I/O and just sets up reading and writing. The
-    /// [`Arena`] passed must have been synced beforehand.
+    /// [`Arena`] passed must have been synced beforehand. This struct can also
+    /// be used to spectate games!
     ///
     /// # Panics
     /// Panics if more than one local player is supplied. Only give one!
     pub fn new(
         cx: &mut Context,
         arena: Arena,
-        players: &[NetPlayer; 2],
+        bind_addrs: impl ToSocketAddrs,
+        in_players: &[NetPlayer; 2],
     ) -> Result<NetBattle, Error> {
         // initialize transport
-        let bind_addrs = players
-            .into_iter()
-            .filter_map(|p| match p {
-                NetPlayer::Remote(s) => Some(s),
-                NetPlayer::Local(_) => None,
-            })
-            .copied()
-            .collect::<Vec<SocketAddr>>();
-        let transport = UdpManager::bind(cx.task_pool.clone(), &*bind_addrs)?;
+        let transport = UdpManager::bind(cx.task_pool.clone(), bind_addrs)?;
 
         // initialize session
         let mut session = P2PSessionBuilder::<NetConfig>::new().with_frame_delay(0);
 
-        todo!();
+        let mut players: [MaybeUninit<Player>; 2] = MaybeUninit::uninit_array();
+        
+        for (i, player) in in_players.into_iter().enumerate() {
+            match player {
+                NetPlayer::Local(p) => {
+                    let handle = session.add_player(backroll::Player::Local);
+                    
+                    players[i] = MaybeUninit::new(Player {
+                        kind: PlayerKind::Local(*p),
+                        handle,
+                        inputs: Default::default(),
+                    });
+                }
+                NetPlayer::Remote(addr) => {
+                    let peer = transport.connect(UdpConnectionConfig::bounded(*addr, 5));
+                    let handle = session.add_player(backroll::Player::Remote(peer));
+
+                    players[i] = MaybeUninit::new(Player {
+                        kind: PlayerKind::Remote,
+                        handle,
+                        inputs: Default::default(),
+                    });
+                }
+            }
+        }
+
+        let session = session.start(cx.task_pool.clone())?;
+
+        Ok(NetBattle {
+            arena,
+            session,
+            _transport: transport,
+            // SAFETY: the `in_players` array passed must be at least 2, the
+            // length of the uninit array. the loop above initializes this array
+            players: unsafe { MaybeUninit::array_assume_init(players) },
+        })
     }
 
     /// Polls an update for the `NetBattle`.
@@ -69,15 +101,18 @@ impl NetBattle {
         self.handle_commands(cx, self.session.poll())?;
 
         while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
-            // sample input from the local player(s)
-            for player in self.players.iter() {
-                if let Some(input) = player.sample_local(cx) {
-                    self.session.add_local_input(player.handle, input)?;
+            // only run logic if the session is synchronized
+            if self.session.is_synchronized() {
+                // sample input from the local player(s)
+                for player in self.players.iter() {
+                    if let Some(input) = player.sample_local(cx) {
+                        self.session.add_local_input(player.handle, input)?;
+                    }
                 }
-            }
 
-            // handle commands
-            self.handle_commands(cx, self.session.advance_frame())?;
+                // handle commands
+                self.handle_commands(cx, self.session.advance_frame())?;
+            }
         }
 
         Ok(())
@@ -160,7 +195,7 @@ struct ArenaSnapshot {
     p2: PlayerSnapshot,
 }
 
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 struct PlayerSnapshot {
     scope: Scope<'static>,
     state: State,
@@ -197,3 +232,14 @@ impl PlayerSnapshot {
         player.state = self.state;
     }
 }
+
+impl Hash for PlayerSnapshot {
+    fn hash<H>(&self, h: &mut H)
+    where
+        H: Hasher,
+    {
+        // only hash state LOL
+        self.state.hash(h);
+    }
+}
+

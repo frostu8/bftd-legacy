@@ -12,6 +12,8 @@ use bftd::Context;
 pub fn main() -> Result<(), Error> {
     env_logger::init();
 
+    let args = bftd::config::Args::from_args();
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_min_inner_size(LogicalSize::new(0, 100))
@@ -24,6 +26,7 @@ pub fn main() -> Result<(), Error> {
         input: bftd::input::Sampler::new(Default::default()),
         frame_limiter: bftd::timer::FrameLimiter::new(),
         task_pool: bevy_tasks::TaskPool::new(),
+        args,
     };
 
     let mut game = bftd::Game::new(&mut cx)?;
