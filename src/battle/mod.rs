@@ -104,8 +104,8 @@ impl Arena {
     pub fn draw(&self, cx: &mut Renderer) -> Result<(), Error> {
         let aspect_ratio = 1. / cx.aspect_ratio();
 
-        let min = self.p1.state.pos.min(self.p2.state.pos) - Vec2::new(0.8, 0.);
-        let max = self.p1.state.pos.max(self.p2.state.pos) + Vec2::new(0.8, 2.0);
+        let min = self.p1.state.pos.min(self.p2.state.pos) - Vec2::new(0.4, 0.);
+        let max = self.p1.state.pos.max(self.p2.state.pos) + Vec2::new(0.4, 2.0);
 
         let center = (min + max) / 2.;
         
