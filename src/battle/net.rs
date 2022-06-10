@@ -9,7 +9,7 @@ use crate::Context;
 
 use backroll::{
     command::{Command, Commands},
-    P2PSession, P2PSessionBuilder, PlayerHandle, BackrollError,
+    Event, P2PSession, P2PSessionBuilder, PlayerHandle, BackrollError,
 };
 use backroll_transport_udp::{UdpManager, UdpConnectionConfig};
 
@@ -26,6 +26,7 @@ pub struct NetBattle {
     _transport: UdpManager,
     // the player at index 0 is left, index 1 is right.
     players: [Player; 2],
+    time_sync: u8,
 }
 
 /// Config for use in initialization of a [`NetBattle`].
@@ -93,6 +94,7 @@ impl NetBattle {
             // SAFETY: the `in_players` array passed must be at least 2, the
             // length of the uninit array. the loop above initializes this array
             players: unsafe { MaybeUninit::array_assume_init(players) },
+            time_sync: 0,
         })
     }
 
@@ -101,6 +103,12 @@ impl NetBattle {
         self.handle_commands(cx, self.session.poll())?;
 
         'update: while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
+            if self.time_sync > 0 {
+                // skip this frame
+                self.time_sync -= 1;
+                continue;
+            }
+
             // only run logic if the session is synchronized
             if self.session.is_synchronized() {
                 // sample input from the local player(s)
@@ -160,6 +168,10 @@ impl NetBattle {
                     save.load().impose(&mut self.arena);
                 }
                 Command::Event(ev) => match ev {
+                    Event::TimeSync { frames_ahead } if frames_ahead > 0 => {
+                        warn!("stalling {} frames to let remote catch up.", frames_ahead);
+                        self.time_sync = frames_ahead;
+                    },
                     _ => (),
                 },
             }
