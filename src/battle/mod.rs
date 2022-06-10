@@ -61,6 +61,7 @@ pub const MAX_HORIZONTAL_DISTANCE: f32 = 3_000.0;
 /// player's positions, health bars and super freezes. It also has a
 /// convenience function for drawing the battle to the screen.
 pub struct Arena {
+    frame: u32,
     p1: Player,
     p2: Player,
 }
@@ -71,6 +72,7 @@ impl Arena {
     /// The initial state is always `"idle"`.
     pub fn new(engine: &Engine, p1: Fsm, p2: Fsm) -> Result<Arena, Error> {
         Ok(Arena {
+            frame: 0,
             p1: Player::new(engine, p1, State::initial_p1())?,
             p2: Player::new(engine, p2, State::initial_p2())?,
         })
@@ -84,6 +86,8 @@ impl Arena {
         p1: &InputBuffer,
         p2: &InputBuffer,
     ) -> Result<(), Error> {
+        self.frame += 1;
+
         // first, update each player's individual state
         self.p1.update(engine, p1)?;
         self.p2.update(engine, p2)?;
@@ -120,6 +124,11 @@ impl Arena {
 
         self.p2.draw(cx)?;
         self.p1.draw(cx)
+    }
+
+    /// The amount of frames that have passed in the battle.
+    pub fn frame(&self) -> u32 {
+        self.frame
     }
 }
 

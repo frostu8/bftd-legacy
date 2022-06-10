@@ -31,6 +31,8 @@ pub fn main() -> Result<(), Error> {
 
     let mut game = bftd::Game::new(&mut cx)?;
 
+    let mut focused = true;
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
@@ -42,12 +44,22 @@ pub fn main() -> Result<(), Error> {
                 cx.render.resize(size.width, size.height);
                 window.request_redraw();
             }
+            Event::WindowEvent {
+                event: WindowEvent::Focused(f),
+                ..
+            } => {
+                focused = f;
+            }
             Event::DeviceEvent {
                 event: DeviceEvent::Key(key),
                 ..
-            } => match key.state {
-                ElementState::Pressed => cx.input.process_key_down(key.scancode),
-                ElementState::Released => cx.input.process_key_up(key.scancode),
+            } => {
+                if focused {
+                    match key.state {
+                        ElementState::Pressed => cx.input.process_key_down(key.scancode),
+                        ElementState::Released => cx.input.process_key_up(key.scancode),
+                    }
+                }
             },
             Event::RedrawRequested(_) => {
                 cx.render.begin(|mut cx| {
@@ -62,6 +74,11 @@ pub fn main() -> Result<(), Error> {
                 ..
             } => *control_flow = ControlFlow::Exit,
             Event::MainEventsCleared => {
+                if focused {
+                    // update input
+                    cx.input.poll();
+                }
+
                 game.update(&mut cx);
                 window.request_redraw();
             }

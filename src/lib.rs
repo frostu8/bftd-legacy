@@ -75,9 +75,6 @@ impl Game {
     ///
     /// This should be called as frequently as possible.
     pub fn update(&mut self, cx: &mut Context) {
-        // update input
-        cx.input.poll();
-
         self.battle.update(cx).unwrap();
     }
 

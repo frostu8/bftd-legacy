@@ -9,7 +9,7 @@ use crate::Context;
 
 use backroll::{
     command::{Command, Commands},
-    P2PSession, P2PSessionBuilder, PlayerHandle,
+    P2PSession, P2PSessionBuilder, PlayerHandle, BackrollError,
 };
 use backroll_transport_udp::{UdpManager, UdpConnectionConfig};
 
@@ -100,13 +100,20 @@ impl NetBattle {
     pub fn update(&mut self, cx: &mut Context) -> Result<(), Error> {
         self.handle_commands(cx, self.session.poll())?;
 
-        while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
+        'update: while cx.frame_limiter.should_update(FRAMES_PER_SECOND) {
             // only run logic if the session is synchronized
             if self.session.is_synchronized() {
                 // sample input from the local player(s)
                 for player in self.players.iter() {
                     if let Some(input) = player.sample_local(cx) {
-                        self.session.add_local_input(player.handle, input)?;
+                        match self.session.add_local_input(player.handle, input) {
+                            Ok(()) => (),
+                            Err(BackrollError::ReachedPredictionBarrier) => {
+                                warn!("skipping rollback frame {}", self.arena.frame());
+                                continue 'update;
+                            }
+                            Err(e) => return Err(e.into()),
+                        };
                     }
                 }
 
