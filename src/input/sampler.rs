@@ -91,6 +91,7 @@ impl Sampler {
         while let Some(ev) = self.gilrs.next_event() {
             match ev.event {
                 EventType::ButtonPressed(btn, _) => self.process_button_down(ev.id, btn),
+                EventType::ButtonReleased(btn, _) => self.process_button_down(ev.id, btn),
                 EventType::AxisChanged(axis, value, _) => self.process_axis(ev.id, axis, value),
                 EventType::Connected => {
                     let gamepad = self.gilrs.gamepad(ev.id);
@@ -137,13 +138,23 @@ impl Sampler {
         }
     }
 
-    /// Processes a gamepad button event.
+    /// Processes a gamepad button down event.
     ///
     /// You shouldn't need to call this yourself. Call [`Sampler::poll`]
     /// instead.
     pub fn process_button_down(&mut self, id: GamepadId, btn: Button) {
         for g in self.gamepads_mut().filter(|g| g.id == id) {
             g.button_down(btn);
+        }
+    }
+
+    /// Processes a gamepad button up event.
+    ///
+    /// You shouldn't need to call this yourself. Call [`Sampler::poll`]
+    /// instead.
+    pub fn process_button_up(&mut self, id: GamepadId, btn: Button) {
+        for g in self.gamepads_mut().filter(|g| g.id == id) {
+            g.button_up(btn);
         }
     }
 
@@ -240,24 +251,19 @@ const DIRECTION_DOWN: u8 = 0b0010;
 #[derive(Debug)]
 pub struct Keyboard {
     direction: u8,
-    buttons: Buttons,
+    buttons_down: Buttons,
+    buttons_pressed: Buttons,
     mapping: KeyboardBinding,
 }
 
-// TODO: this implementation is extremely quick and dirty, find a more elegant
-// solution to this!
-//
-// to be honest, we may just want to use an adapter to adapt keyboard inputs to
-// gamepad inputs, so we really only have to implement the gamepad input
-// handler, but it may not work as well.
-// TODO: also fix input tunneling
 impl Keyboard {
     /// Creates a new `Keyboard` sampler.
     pub fn new(mapping: KeyboardBinding) -> Keyboard {
         Keyboard {
             mapping,
             direction: 0,
-            buttons: Buttons::empty(),
+            buttons_down: Buttons::empty(),
+            buttons_pressed: Buttons::empty(),
         }
     }
 
@@ -268,7 +274,10 @@ impl Keyboard {
         }
 
         if let Some(&buttons) = self.mapping.button_map.get(&key) {
-            self.buttons.insert(buttons);
+            // In the event that a button is both pressed and released on the
+            // same frame, we need to scan that input.
+            self.buttons_down.insert(buttons);
+            self.buttons_pressed.insert(buttons);
         }
     }
 
@@ -276,6 +285,10 @@ impl Keyboard {
     pub fn key_up(&mut self, key: ScanCode) {
         if let Some(&direction) = self.mapping.direction_map.get(&key) {
             self.direction &= !direction;
+        }
+
+        if let Some(&buttons) = self.mapping.button_map.get(&key) {
+            self.buttons_down.remove(buttons);
         }
     }
 
@@ -298,10 +311,10 @@ impl Keyboard {
 
         let inputs = Inputs {
             direction,
-            buttons: self.buttons,
+            buttons: self.buttons_down | self.buttons_pressed,
         };
 
-        self.buttons = Buttons::empty();
+        self.buttons_pressed = Buttons::empty();
         inputs
     }
 }
@@ -342,7 +355,8 @@ pub struct Gamepad {
     id: GamepadId,
     axis_x: f32,
     axis_y: f32,
-    buttons: Buttons,
+    buttons_down: Buttons,
+    buttons_pressed: Buttons,
 
     uuid: Uuid,
     mapping: GamepadBinding,
@@ -355,17 +369,26 @@ impl Gamepad {
             id,
             axis_x: 0.,
             axis_y: 0.,
-            buttons: Buttons::default(),
+            buttons_down: Buttons::default(),
+            buttons_pressed: Buttons::default(),
 
             uuid,
             mapping,
         }
     }
 
-    /// Processes a gamepad button event.
+    /// Processes a gamepad button down event.
     pub fn button_down(&mut self, btn: Button) {
         if let Some(&buttons) = self.mapping.button_map.get(&btn) {
-            self.buttons.insert(buttons);
+            self.buttons_down.insert(buttons);
+            self.buttons_pressed.insert(buttons);
+        }
+    }
+
+    /// Processes a gamepad button up event.
+    pub fn button_up(&mut self, btn: Button) {
+        if let Some(&buttons) = self.mapping.button_map.get(&btn) {
+            self.buttons_down.remove(buttons);
         }
     }
 
@@ -403,10 +426,10 @@ impl Gamepad {
 
         let inputs = Inputs {
             direction,
-            buttons: self.buttons,
+            buttons: self.buttons_down | self.buttons_pressed,
         };
 
-        self.buttons = Buttons::empty();
+        self.buttons_pressed = Buttons::empty();
         inputs
     }
 }
